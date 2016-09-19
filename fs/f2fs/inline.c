@@ -14,6 +14,8 @@
 #include "f2fs.h"
 #include "node.h"
 
+#include <trace/events/android_fs.h>
+
 bool f2fs_may_inline_data(struct inode *inode)
 {
 	if (f2fs_is_atomic_file(inode))
@@ -84,8 +86,14 @@ int f2fs_read_inline_data(struct inode *inode, struct page *page)
 {
 	struct page *ipage;
 
+	trace_android_fs_dataread_start(inode, page_offset(page),
+					PAGE_SIZE, current->pid,
+					current->comm);
+
 	ipage = get_node_page(F2FS_I_SB(inode), inode->i_ino);
 	if (IS_ERR(ipage)) {
+		trace_android_fs_dataread_end(inode, page_offset(page),
+					      PAGE_SIZE);
 		unlock_page(page);
 		return PTR_ERR(ipage);
 	}
@@ -99,6 +107,8 @@ int f2fs_read_inline_data(struct inode *inode, struct page *page)
 		zero_user_segment(page, 0, PAGE_SIZE);
 	else
 		read_inline_data(page, ipage);
+
+	trace_android_fs_dataread_end(inode, page_offset(page), PAGE_SIZE);
 
 	if (!PageUptodate(page))
 		SetPageUptodate(page);
