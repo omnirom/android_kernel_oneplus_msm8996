@@ -37,6 +37,8 @@
 #define FIFO_STATUS	0x0C
 #define LANE_STATUS	0xA8
 
+#define MDSS_DSI_INT_CTRL	0x0110
+
 struct mdss_dsi_ctrl_pdata *ctrl_list[DSI_CTRL_MAX];
 
 struct mdss_hw mdss_dsi0_hw = {
@@ -130,7 +132,7 @@ void mdss_dsi_ctrl_init(struct device *ctrl_dev,
 	}
 }
 
-static void mdss_dsi_set_reg(struct mdss_dsi_ctrl_pdata *ctrl, int off,
+void mdss_dsi_set_reg(struct mdss_dsi_ctrl_pdata *ctrl, int off,
 						u32 mask, u32 val)
 {
 	u32 data;
@@ -2245,10 +2247,25 @@ int mdss_dsi_en_wait4dynamic_done(struct mdss_dsi_ctrl_pdata *ctrl)
 		MIPI_OUTP((sctrl_pdata->ctrl_base) + DSI_DYNAMIC_REFRESH_CTRL,
 				(BIT(13) | BIT(8) | BIT(0)));
 
-	if (!wait_for_completion_timeout(&ctrl->dynamic_comp,
-			msecs_to_jiffies(VSYNC_PERIOD * 4))) {
-		pr_err("Dynamic interrupt timedout\n");
-		rc = -EINVAL;
+	rc = wait_for_completion_timeout(&ctrl->dynamic_comp,
+			msecs_to_jiffies(VSYNC_PERIOD * 4));
+	if (rc == 0) {
+		u32 reg_val, status;
+
+		reg_val = MIPI_INP(ctrl->ctrl_base + MDSS_DSI_INT_CTRL);
+		status = reg_val & DSI_INTR_DYNAMIC_REFRESH_DONE;
+		if (status) {
+			reg_val &= DSI_INTR_MASK_ALL;
+			/* clear dfps DONE isr only */
+			reg_val |= DSI_INTR_DYNAMIC_REFRESH_DONE;
+			MIPI_OUTP(ctrl->ctrl_base + MDSS_DSI_INT_CTRL, reg_val);
+			mdss_dsi_disable_irq(ctrl, DSI_DYNAMIC_TERM);
+			pr_warn_ratelimited("%s: dfps done but irq not triggered\n",
+				__func__);
+		} else {
+			pr_err("Dynamic interrupt timedout\n");
+			rc = -ETIMEDOUT;
+		}
 	}
 
 	data = MIPI_INP((ctrl->ctrl_base) + 0x0110);
@@ -2496,9 +2513,6 @@ int mdss_dsi_cmdlist_commit(struct mdss_dsi_ctrl_pdata *ctrl, int from_mdp)
 	bool hs_req = false;
 	bool cmd_mutex_acquired = false;
 
-	if (mdss_get_sd_client_cnt())
-		return -EPERM;
-
 	if (from_mdp) {	/* from mdp kickoff */
 		if (!ctrl->burst_mode_enabled) {
 			mutex_lock(&ctrl->cmd_mutex);
@@ -2524,6 +2538,21 @@ int mdss_dsi_cmdlist_commit(struct mdss_dsi_ctrl_pdata *ctrl, int from_mdp)
 	if ((!ctrl->burst_mode_enabled) || from_mdp) {
 		/* make sure dsi_cmd_mdp is idle */
 		mdss_dsi_cmd_mdp_busy(ctrl);
+	}
+
+	/*
+	 * if secure display session is enabled
+	 * and DSI controller version is above 1.3.0,
+	 * then send DSI commands using TPG FIFO.
+	 */
+	if (mdss_get_sd_client_cnt() && req) {
+		if (ctrl->shared_data->hw_rev >= MDSS_DSI_HW_REV_103) {
+			req->flags |= CMD_REQ_DMA_TPG;
+		} else {
+			if (cmd_mutex_acquired)
+				mutex_unlock(&ctrl->cmd_mutex);
+			return -EPERM;
+		}
 	}
 
 	/* For DSI versions less than 1.3.0, CMD DMA TPG is not supported */
@@ -2614,10 +2643,10 @@ int mdss_dsi_cmdlist_commit(struct mdss_dsi_ctrl_pdata *ctrl, int from_mdp)
 			ctrl->mdss_util->iommu_ctrl(0);
 
 		(void)mdss_dsi_bus_bandwidth_vote(ctrl->shared_data, false);
-		mdss_dsi_clk_ctrl(ctrl, ctrl->dsi_clk_handle, MDSS_DSI_ALL_CLKS,
-			  MDSS_DSI_CLK_OFF);
 	}
 
+	mdss_dsi_clk_ctrl(ctrl, ctrl->dsi_clk_handle, MDSS_DSI_ALL_CLKS,
+			MDSS_DSI_CLK_OFF);
 need_lock:
 
 	MDSS_XLOG(ctrl->ndx, from_mdp, ctrl->mdp_busy, current->pid,
@@ -2913,7 +2942,9 @@ static bool mdss_dsi_fifo_status(struct mdss_dsi_ctrl_pdata *ctrl)
 	/* fifo underflow, overflow and empty*/
 	if (status & 0xcccc4409) {
 		MIPI_OUTP(base + 0x000c, status);
+
 		pr_err("%s: status=%x\n", __func__, status);
+
 		if (status & 0x44440000) {/* DLNx_HS_FIFO_OVERFLOW */
 			dsi_send_events(ctrl, DSI_EV_DLNx_FIFO_OVERFLOW, 0);
 			/* Ignore FIFO EMPTY when overflow happens */
@@ -2960,6 +2991,10 @@ static bool mdss_dsi_clk_status(struct mdss_dsi_ctrl_pdata *ctrl)
 
 	if (status & 0x10000) { /* DSI_CLK_PLL_UNLOCKED */
 		MIPI_OUTP(base + 0x0120, status);
+		/* If PLL unlock is masked, do not report error */
+		if (MIPI_INP(base + 0x10c) & BIT(28))
+			return false;
+
 		dsi_send_events(ctrl, DSI_EV_PLL_UNLOCKED, 0);
 		pr_err("%s: status=%x\n", __func__, status);
 		ret = true;

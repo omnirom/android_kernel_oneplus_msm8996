@@ -3024,7 +3024,7 @@ static int hdmi_tx_config_power(struct hdmi_tx_ctrl *hdmi_ctrl,
 		snprintf(name, MAX_CLIENT_NAME_LEN, "hdmi:%u", module);
 		hdmi_ctrl->pdata.reg_bus_clt[module] =
 			mdss_reg_bus_vote_client_create(name);
-		if (IS_ERR_OR_NULL(hdmi_ctrl->pdata.reg_bus_clt[module])) {
+		if (IS_ERR(hdmi_ctrl->pdata.reg_bus_clt[module])) {
 			pr_err("reg bus client create failed\n");
 			msm_dss_config_vreg(&hdmi_ctrl->pdev->dev,
 			power_data->vreg_config, power_data->num_vreg, 0);
@@ -3157,7 +3157,7 @@ static int hdmi_tx_enable_power(struct hdmi_tx_ctrl *hdmi_ctrl,
 			goto disable_vreg;
 		}
 		mdss_update_reg_bus_vote(hdmi_ctrl->pdata.reg_bus_clt[module],
-			VOTE_INDEX_19_MHZ);
+			VOTE_INDEX_LOW);
 
 		rc = msm_dss_clk_set_rate(power_data->clk_config,
 			power_data->num_clk);

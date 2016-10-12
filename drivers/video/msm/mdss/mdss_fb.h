@@ -129,15 +129,15 @@ enum mdp_mmap_type {
  * enum dyn_mode_switch_state - Lists next stage for dynamic mode switch work
  *
  * @MDSS_MDP_NO_UPDATE_REQUESTED: incoming frame is processed normally
- * @MDSS_MDP_WAIT_FOR_PREP: Waiting for OVERLAY_PREPARE to be called
- * @MDSS_MDP_WAIT_FOR_SYNC: Waiting for BUFFER_SYNC to be called
- * @MDSS_MDP_WAIT_FOR_COMMIT: Waiting for COMMIT to be called
+ * @MDSS_MDP_WAIT_FOR_VALIDATE: Waiting for ATOMIC_COMMIT-validate to be called
+ * @MDSS_MDP_WAIT_FOR_COMMIT: Waiting for ATOMIC_COMMIT-commit to be called
+ * @MDSS_MDP_WAIT_FOR_KICKOFF: Waiting for KICKOFF to be called
  */
 enum dyn_mode_switch_state {
 	MDSS_MDP_NO_UPDATE_REQUESTED,
-	MDSS_MDP_WAIT_FOR_PREP,
-	MDSS_MDP_WAIT_FOR_SYNC,
+	MDSS_MDP_WAIT_FOR_VALIDATE,
 	MDSS_MDP_WAIT_FOR_COMMIT,
+	MDSS_MDP_WAIT_FOR_KICKOFF,
 };
 
 /**
@@ -273,7 +273,7 @@ struct msm_fb_data_type {
 	u32 idle_state;
 	struct delayed_work idle_notify_work;
 
-	bool validate_pending;
+	bool atomic_commit_pending;
 
 	int op_enable;
 	u32 fb_imgType;

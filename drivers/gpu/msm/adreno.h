@@ -33,8 +33,6 @@
 #define DEVICE_3D_NAME "kgsl-3d"
 #define DEVICE_3D0_NAME "kgsl-3d0"
 
-#define ADRENO_PRIORITY_MAX_RB_LEVELS	4
-
 /* ADRENO_DEVICE - Given a kgsl_device return the adreno device struct */
 #define ADRENO_DEVICE(device) \
 		container_of(device, struct adreno_device, dev)
@@ -182,6 +180,7 @@ enum adreno_gpurev {
 #define ADRENO_SPTP_PC_CTRL 0
 #define ADRENO_PPD_CTRL     1
 #define ADRENO_LM_CTRL      2
+#define ADRENO_HWCG_CTRL    3
 
 /* number of throttle counters for DCVS adjustment */
 #define ADRENO_GPMU_THROTTLE_COUNTERS 4
@@ -376,7 +375,7 @@ struct adreno_device {
 	struct kgsl_memdesc pm4;
 	size_t gpmu_cmds_size;
 	unsigned int *gpmu_cmds;
-	struct adreno_ringbuffer ringbuffers[ADRENO_PRIORITY_MAX_RB_LEVELS];
+	struct adreno_ringbuffer ringbuffers[KGSL_PRIORITY_MAX_RB_LEVELS];
 	int num_ringbuffers;
 	struct adreno_ringbuffer *cur_rb;
 	struct adreno_ringbuffer *next_rb;
@@ -610,11 +609,13 @@ struct adreno_vbif_platform {
  * struct adreno_vbif_snapshot_registers - Holds an array of vbif registers
  * listed for snapshot dump for a particular core
  * @version: vbif version
+ * @mask: vbif revision mask
  * @registers: vbif registers listed for snapshot dump
  * @count: count of vbif registers listed for snapshot
  */
 struct adreno_vbif_snapshot_registers {
 	const unsigned int version;
+	const unsigned int mask;
 	const unsigned int *registers;
 	const int count;
 };

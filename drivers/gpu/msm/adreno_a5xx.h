@@ -1,4 +1,4 @@
-/* Copyright (c) 2015, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -52,7 +52,7 @@
 
 #define A5XX_CP_CTXRECORD_MAGIC_REF     0x27C4BAFCUL
 /* Size of each CP preemption record */
-#define A5XX_CP_CTXRECORD_SIZE_IN_BYTES     0x100000
+#define A5XX_CP_CTXRECORD_SIZE_IN_BYTES     0x10000
 /* Size of the preemption counter block (in bytes) */
 #define A5XX_CP_CTXRECORD_PREEMPTION_COUNTER_SIZE   (16 * 4)
 
@@ -140,7 +140,7 @@ void a5xx_hwcg_set(struct adreno_device *adreno_dev, bool on);
 
 /* A5XX_GPMU_GPMU_LLM_GLM_SLEEP_STATUS */
 #define WAKEUP_ACK			BIT(1)
-#define IDLE_FULL_ACK_SLEEP		BIT(0)
+#define IDLE_FULL_ACK			BIT(0)
 
 /* A5XX_GPMU_TEMP_SENSOR_CONFIG */
 #define GPMU_BCL_ENABLED		BIT(4)
@@ -159,6 +159,9 @@ void a5xx_hwcg_set(struct adreno_device *adreno_dev, bool on);
 #define AMP_OUT_OF_RANGE_ERR		BIT(4)
 #define AMP_OFFSET_CHECK_MAX_ERR	BIT(2)
 #define AMP_OFFSET_CHECK_MIN_ERR	BIT(1)
+
+/* A5XX_GPU_CS_AMP_CALIBRATION_DONE */
+#define SW_OPAMP_CAL_DONE           BIT(0)
 
 #define AMP_CALIBRATION_ERR (AMP_OFFSET_CHECK_MIN_ERR | \
 		AMP_OFFSET_CHECK_MAX_ERR | AMP_OUT_OF_RANGE_ERR)

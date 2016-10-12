@@ -452,7 +452,7 @@ void adreno_drawctxt_detach(struct kgsl_context *context)
 	struct adreno_device *adreno_dev;
 	struct adreno_context *drawctxt;
 	struct adreno_ringbuffer *rb;
-	int ret, count, i;
+	int ret = 0, count, i;
 	struct kgsl_cmdbatch *list[ADRENO_CONTEXT_CMDQUEUE_SIZE];
 
 	if (context == NULL)
@@ -549,7 +549,7 @@ static void _drawctxt_switch_wait_callback(struct kgsl_device *device,
  * @adreno_dev - The 3D device that owns the context
  * @rb: The ringubffer pointer on which the current context is being changed
  * @drawctxt - the 3D context to switch to
- * @flags - Flags to accompany the switch (from user space)
+ * @flags: Control flags for the switch
  *
  * Switch the current draw context in given RB
  */
@@ -570,8 +570,16 @@ int adreno_drawctxt_switch(struct adreno_device *adreno_dev,
 	if (rb->drawctxt_active == drawctxt)
 		return ret;
 
-	trace_adreno_drawctxt_switch(rb,
-		drawctxt, flags);
+	/*
+	 * Submitting pt switch commands from a detached context can
+	 * lead to a race condition where the pt is destroyed before
+	 * the pt switch commands get executed by the GPU, leading to
+	 * pagefaults.
+	 */
+	if (drawctxt != NULL && kgsl_context_detached(&drawctxt->base))
+		return -ENOENT;
+
+	trace_adreno_drawctxt_switch(rb, drawctxt);
 
 	/* Get a refcount to the new instance */
 	if (drawctxt) {
@@ -583,7 +591,7 @@ int adreno_drawctxt_switch(struct adreno_device *adreno_dev,
 		 /* No context - set the default pagetable and thats it. */
 		new_pt = device->mmu.defaultpagetable;
 	}
-	ret = adreno_ringbuffer_set_pt_ctx(rb, new_pt, drawctxt);
+	ret = adreno_ringbuffer_set_pt_ctx(rb, new_pt, drawctxt, flags);
 	if (ret)
 		return ret;
 

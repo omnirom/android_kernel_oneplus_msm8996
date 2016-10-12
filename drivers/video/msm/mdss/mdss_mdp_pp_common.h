@@ -1,4 +1,5 @@
-/* Copyright (c) 2015, The Linux Foundation. All rights reserved.
+/*
+ * Copyright (c) 2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -8,11 +9,19 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
+ *
  */
+#ifndef MDSS_MDP_PP_COMMON_H
+#define MDSS_MDP_PP_COMMON_H
 
-#ifndef __MSM_JPEG_DMA__
-#define __MSM_JPEG_DMA__
+#include "mdss_mdp.h"
+#include "mdss_mdp_pp.h"
 
-#include <uapi/media/msm_jpeg_dma.h>
+#define JUMP_REGISTERS_OFF(n) ((n) * (sizeof(uint32_t)))
+#define REG_MASK(n) ((BIT(n)) - 1)
+#define REG_MASK_SHIFT(n, shift) ((REG_MASK(n)) << (shift))
 
-#endif /* __MSM_JPEG_DMA__ */
+void pp_pa_set_sts(struct pp_sts_type *pp_sts,
+		   struct mdp_pa_data_v1_7 *pa_data,
+		   int enable_flag, int block_type);
+#endif

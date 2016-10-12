@@ -115,12 +115,6 @@ enum {
 };
 
 enum {
-	MDSS_PANEL_BLANK_BLANK = 0,
-	MDSS_PANEL_BLANK_UNBLANK,
-	MDSS_PANEL_BLANK_LOW_POWER,
-};
-
-enum {
 	MODE_GPIO_NOT_VALID = 0,
 	MODE_GPIO_HIGH,
 	MODE_GPIO_LOW,
@@ -588,6 +582,15 @@ struct mdss_mdp_pp_tear_check {
 
 struct mdss_livedisplay_ctx;
 
+struct mdss_panel_roi_alignment {
+	u32 xstart_pix_align;
+	u32 width_pix_align;
+	u32 ystart_pix_align;
+	u32 height_pix_align;
+	u32 min_width;
+	u32 min_height;
+};
+
 struct mdss_panel_info {
 	u32 xres;
 	u32 yres;
@@ -636,15 +639,10 @@ struct mdss_panel_info {
 	int panel_max_fps;
 	int panel_max_vtotal;
 	u32 mode_gpio_state;
-	u32 xstart_pix_align;
-	u32 width_pix_align;
-	u32 ystart_pix_align;
-	u32 height_pix_align;
-	u32 min_width;
-	u32 min_height;
 	u32 min_fps;
 	u32 max_fps;
 	u32 prg_fet;
+	struct mdss_panel_roi_alignment roi_alignment;
 
 	u32 cont_splash_enabled;
 	bool esd_rdy;
@@ -704,6 +702,12 @@ struct mdss_panel_info {
 	u8 dsc_enc_total; /* max 2 */
 	struct dsc_desc dsc;
 
+	/*
+	 * To determine, if DSC panel requires the pps to be sent
+	 * before or after the switch, during dynamic resolution switching
+	 */
+	bool send_pps_before_switch;
+
 	struct lcd_panel_info lcdc;
 	struct fbc_panel_info fbc;
 	struct mipi_panel_info mipi;
@@ -755,6 +759,7 @@ struct mdss_panel_timing {
 	u32 compression_mode;
 
 	struct mdss_mdp_pp_tear_check te;
+	struct mdss_panel_roi_alignment roi_alignment;
 };
 
 struct mdss_panel_data {
@@ -781,7 +786,8 @@ struct mdss_panel_data {
 	struct mdss_panel_timing *current_timing;
 	bool active;
 
-	struct device_node *cfg_np; /* NULL if config node is not present */
+	/* To store dsc cfg name passed by bootloader */
+	char dsc_cfg_np_name[MDSS_MAX_PANEL_LEN];
 	struct mdss_panel_data *next;
 };
 
@@ -1011,12 +1017,17 @@ static inline u8 mdss_panel_calc_frame_rate(struct mdss_panel_info *pinfo)
 {
 		u32 pixel_total = 0;
 		u8 frame_rate = 0;
-		unsigned long pclk_rate = pinfo->clk_rate;
+		unsigned long pclk_rate = pinfo->mipi.dsi_pclk_rate;
+		u32 xres;
+
+		xres = pinfo->xres;
+		if (pinfo->compression_mode == COMPRESSION_DSC)
+			xres /= 3;
 
 		pixel_total = (pinfo->lcdc.h_back_porch +
 			  pinfo->lcdc.h_front_porch +
 			  pinfo->lcdc.h_pulse_width +
-			  pinfo->xres) *
+			  xres) *
 			 (pinfo->lcdc.v_back_porch +
 			  pinfo->lcdc.v_front_porch +
 			  pinfo->lcdc.v_pulse_width +
@@ -1026,7 +1037,7 @@ static inline u8 mdss_panel_calc_frame_rate(struct mdss_panel_info *pinfo)
 			frame_rate =
 				DIV_ROUND_CLOSEST(pclk_rate, pixel_total);
 		else
-			frame_rate = DEFAULT_FRAME_RATE;
+			frame_rate = pinfo->panel_max_fps;
 
 		return frame_rate;
 }

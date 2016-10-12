@@ -35,8 +35,6 @@
 /* Filter out input events for 1 vsync time after receiving an input event*/
 #define INPUT_EVENT_HANDLER_DELAY_USECS 16000
 
-#define MDP_INTR_MASK_INTF_VSYNC(intf_num) \
-	(1 << (2 * (intf_num - MDSS_MDP_INTF0) + MDSS_MDP_IRQ_INTF_VSYNC))
 enum {
 	MDP_INTF_INTR_PROG_LINE,
 	MDP_INTF_INTR_MAX,
@@ -551,9 +549,10 @@ static inline void video_vsync_irq_enable(struct mdss_mdp_ctl *ctl, bool clear)
 
 	mutex_lock(&ctx->vsync_mtx);
 	if (atomic_inc_return(&ctx->vsync_ref) == 1)
-		mdss_mdp_irq_enable(MDSS_MDP_IRQ_INTF_VSYNC, ctl->intf_num);
+		mdss_mdp_irq_enable(MDSS_MDP_IRQ_TYPE_INTF_VSYNC,
+				ctl->intf_num);
 	else if (clear)
-		mdss_mdp_irq_clear(ctl->mdata, MDSS_MDP_IRQ_INTF_VSYNC,
+		mdss_mdp_irq_clear(ctl->mdata, MDSS_MDP_IRQ_TYPE_INTF_VSYNC,
 				ctl->intf_num);
 	mutex_unlock(&ctx->vsync_mtx);
 }
@@ -564,7 +563,8 @@ static inline void video_vsync_irq_disable(struct mdss_mdp_ctl *ctl)
 
 	mutex_lock(&ctx->vsync_mtx);
 	if (atomic_dec_return(&ctx->vsync_ref) == 0)
-		mdss_mdp_irq_disable(MDSS_MDP_IRQ_INTF_VSYNC, ctl->intf_num);
+		mdss_mdp_irq_disable(MDSS_MDP_IRQ_TYPE_INTF_VSYNC,
+				ctl->intf_num);
 	mutex_unlock(&ctx->vsync_mtx);
 }
 
@@ -808,11 +808,11 @@ void mdss_mdp_turn_off_time_engine(struct mdss_mdp_ctl *ctl,
 	mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_OFF);
 	ctx->timegen_en = false;
 
-	mdss_mdp_irq_disable(MDSS_MDP_IRQ_INTF_UNDER_RUN, ctl->intf_num);
+	mdss_mdp_irq_disable(MDSS_MDP_IRQ_TYPE_INTF_UNDER_RUN, ctl->intf_num);
 
 	sctl = mdss_mdp_get_split_ctl(ctl);
 	if (sctl)
-		mdss_mdp_irq_disable(MDSS_MDP_IRQ_INTF_UNDER_RUN,
+		mdss_mdp_irq_disable(MDSS_MDP_IRQ_TYPE_INTF_UNDER_RUN,
 			sctl->intf_num);
 }
 
@@ -848,9 +848,9 @@ static int mdss_mdp_video_ctx_stop(struct mdss_mdp_ctl *ctl,
 		mdss_bus_bandwidth_ctrl(false);
 	}
 
-	mdss_mdp_set_intr_callback(MDSS_MDP_IRQ_INTF_VSYNC,
+	mdss_mdp_set_intr_callback(MDSS_MDP_IRQ_TYPE_INTF_VSYNC,
 		ctx->intf_num, NULL, NULL);
-	mdss_mdp_set_intr_callback(MDSS_MDP_IRQ_INTF_UNDER_RUN,
+	mdss_mdp_set_intr_callback(MDSS_MDP_IRQ_TYPE_INTF_UNDER_RUN,
 		ctx->intf_num, NULL, NULL);
 	mdss_mdp_set_intf_intr_callback(ctx, MDSS_MDP_INTF_IRQ_PROG_LINE,
 		NULL, NULL);
@@ -1002,7 +1002,8 @@ static int mdss_mdp_video_pollwait(struct mdss_mdp_ctl *ctl)
 	u32 mask, status;
 	int rc;
 
-	mask = MDP_INTR_MASK_INTF_VSYNC(ctl->intf_num);
+	mask = mdss_mdp_get_irq_mask(MDSS_MDP_IRQ_TYPE_INTF_VSYNC,
+			ctl->intf_num);
 
 	mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_ON);
 	rc = readl_poll_timeout(ctl->mdata->mdp_base + MDSS_MDP_REG_INTR_STATUS,
@@ -1515,10 +1516,11 @@ static int mdss_mdp_video_display(struct mdss_mdp_ctl *ctl, void *arg)
 
 		mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_ON);
 
-		mdss_mdp_irq_enable(MDSS_MDP_IRQ_INTF_UNDER_RUN, ctl->intf_num);
+		mdss_mdp_irq_enable(MDSS_MDP_IRQ_TYPE_INTF_UNDER_RUN,
+				ctl->intf_num);
 		sctl = mdss_mdp_get_split_ctl(ctl);
 		if (sctl)
-			mdss_mdp_irq_enable(MDSS_MDP_IRQ_INTF_UNDER_RUN,
+			mdss_mdp_irq_enable(MDSS_MDP_IRQ_TYPE_INTF_UNDER_RUN,
 				sctl->intf_num);
 
 		mdss_bus_bandwidth_ctrl(true);
@@ -1703,21 +1705,12 @@ static inline bool mdss_mdp_video_need_pixel_drop(u32 vic)
 }
 
 static int mdss_mdp_video_cdm_setup(struct mdss_mdp_cdm *cdm,
-				   struct mdss_panel_info *pinfo)
+	struct mdss_panel_info *pinfo, struct mdss_mdp_format_params *fmt)
 {
-	struct mdss_mdp_format_params *fmt;
 	struct mdp_cdm_cfg setup;
 
-	fmt = mdss_mdp_get_format_params(pinfo->out_format);
-
-	if (!fmt) {
-		pr_err("%s: format %d not supported\n", __func__,
-		       pinfo->out_format);
-		return -EINVAL;
-	}
-	setup.out_format = pinfo->out_format;
 	if (fmt->is_yuv)
-		setup.csc_type = MDSS_MDP_CSC_RGB2YUV_601L;
+		setup.csc_type = MDSS_MDP_CSC_RGB2YUV_601FR;
 	else
 		setup.csc_type = MDSS_MDP_CSC_RGB2RGB;
 
@@ -1745,6 +1738,7 @@ static int mdss_mdp_video_cdm_setup(struct mdss_mdp_cdm *cdm,
 		return -EINVAL;
 	}
 
+	setup.out_format = pinfo->out_format;
 	setup.mdp_csc_bit_depth = MDP_CDM_CSC_8BIT;
 	setup.output_width = pinfo->xres + pinfo->lcdc.xres_pad;
 	setup.output_height = pinfo->yres + pinfo->lcdc.yres_pad;
@@ -1778,6 +1772,7 @@ static int mdss_mdp_video_ctx_setup(struct mdss_mdp_ctl *ctl,
 {
 	struct intf_timing_params *itp = &ctx->itp;
 	u32 dst_bpp;
+	struct mdss_mdp_format_params *fmt;
 	struct mdss_data_type *mdata = ctl->mdata;
 	struct dsc_desc *dsc = NULL;
 
@@ -1811,17 +1806,32 @@ static int mdss_mdp_video_ctx_setup(struct mdss_mdp_ctl *ctl,
 	}
 
 	if (mdss_mdp_is_cdm_supported(mdata, ctl->intf_type, 0)) {
-		ctl->cdm = mdss_mdp_cdm_init(ctl, MDP_CDM_CDWN_OUTPUT_HDMI);
-		if (!IS_ERR_OR_NULL(ctl->cdm)) {
-			if (mdss_mdp_video_cdm_setup(ctl->cdm, pinfo)) {
-				pr_err("%s: setting up cdm failed\n",
-				       __func__);
+
+		fmt = mdss_mdp_get_format_params(pinfo->out_format);
+		if (!fmt) {
+			pr_err("%s: format %d not supported\n", __func__,
+			       pinfo->out_format);
+			return -EINVAL;
+		}
+		if (fmt->is_yuv) {
+			ctl->cdm =
+			mdss_mdp_cdm_init(ctl, MDP_CDM_CDWN_OUTPUT_HDMI);
+			if (!IS_ERR_OR_NULL(ctl->cdm)) {
+				if (mdss_mdp_video_cdm_setup(ctl->cdm,
+					pinfo, fmt)) {
+					pr_err("%s: setting up cdm failed\n",
+					       __func__);
+					return -EINVAL;
+				}
+				ctl->flush_bits |= BIT(26);
+			} else {
+				pr_err("%s: failed to initialize cdm\n",
+					__func__);
 				return -EINVAL;
 			}
-			ctl->flush_bits |= BIT(26);
 		} else {
-			pr_err("%s: failed to initialize cdm\n", __func__);
-			return -EINVAL;
+			pr_debug("%s: Format is not YUV,cdm not required\n",
+				 __func__);
 		}
 	} else {
 		pr_debug("%s: cdm not supported\n", __func__);
@@ -1830,10 +1840,10 @@ static int mdss_mdp_video_ctx_setup(struct mdss_mdp_ctl *ctl,
 	if (pinfo->compression_mode == COMPRESSION_DSC)
 		dsc = &pinfo->dsc;
 
-	mdss_mdp_set_intr_callback(MDSS_MDP_IRQ_INTF_VSYNC,
+	mdss_mdp_set_intr_callback(MDSS_MDP_IRQ_TYPE_INTF_VSYNC,
 			ctx->intf_num, mdss_mdp_video_vsync_intr_done,
 			ctl);
-	mdss_mdp_set_intr_callback(MDSS_MDP_IRQ_INTF_UNDER_RUN,
+	mdss_mdp_set_intr_callback(MDSS_MDP_IRQ_TYPE_INTF_UNDER_RUN,
 				ctx->intf_num,
 				mdss_mdp_video_underrun_intr_done, ctl);
 	mdss_mdp_set_intf_intr_callback(ctx, MDSS_MDP_INTF_IRQ_PROG_LINE,

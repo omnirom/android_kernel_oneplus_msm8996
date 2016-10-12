@@ -112,9 +112,8 @@ static void mdss_dsi_config_clk_src(struct platform_device *pdev)
 	struct mdss_dsi_data *dsi_res = platform_get_drvdata(pdev);
 	struct dsi_shared_data *sdata = dsi_res->shared_data;
 
-	if (!sdata->ext_byte0_clk || !sdata->ext_byte1_clk ||
-		!sdata->ext_pixel0_clk || !sdata->ext_pixel1_clk) {
-		pr_debug("%s: config_clk_src not needed\n", __func__);
+	if (!sdata->ext_byte0_clk || !sdata->ext_pixel0_clk) {
+		pr_debug("%s: DSI-0 ext. clocks not present\n", __func__);
 		return;
 	}
 
@@ -134,10 +133,15 @@ static void mdss_dsi_config_clk_src(struct platform_device *pdev)
 		if (mdss_dsi_is_hw_config_split(sdata)) {
 			sdata->byte1_parent = sdata->byte0_parent;
 			sdata->pixel1_parent = sdata->pixel0_parent;
-		} else {
+		} else if (sdata->ext_byte1_clk && sdata->ext_pixel1_clk) {
 			sdata->byte1_parent = sdata->ext_byte1_clk;
 			sdata->pixel1_parent = sdata->ext_pixel1_clk;
+		} else {
+			pr_debug("%s: DSI-1 external clocks not present\n",
+				__func__);
+			return;
 		}
+
 		pr_debug("%s: default: DSI0 <--> PLL0, DSI1 <--> %s", __func__,
 			mdss_dsi_is_hw_config_split(sdata) ? "PLL0" : "PLL1");
 	} else {
@@ -154,9 +158,15 @@ static void mdss_dsi_config_clk_src(struct platform_device *pdev)
 			sdata->byte0_parent = sdata->ext_byte0_clk;
 			sdata->pixel0_parent = sdata->ext_pixel0_clk;
 		} else if (mdss_dsi_is_pll_src_pll1(sdata)) {
-			pr_debug("%s: single source: PLL1", __func__);
-			sdata->byte0_parent = sdata->ext_byte1_clk;
-			sdata->pixel0_parent = sdata->ext_pixel1_clk;
+			if (sdata->ext_byte1_clk && sdata->ext_pixel1_clk) {
+				pr_debug("%s: single source: PLL1", __func__);
+				sdata->byte0_parent = sdata->ext_byte1_clk;
+				sdata->pixel0_parent = sdata->ext_pixel1_clk;
+			} else {
+				pr_err("%s: DSI-1 external clocks not present\n",
+					__func__);
+				return;
+			}
 		}
 		sdata->byte1_parent = sdata->byte0_parent;
 		sdata->pixel1_parent = sdata->pixel0_parent;
@@ -984,6 +994,9 @@ static int mdss_dsi_debugfs_init(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 	}
 
 	pdata = &ctrl_pdata->panel_data;
+	if (!pdata)
+		return -EINVAL;
+
 	panel_info = pdata->panel_info;
 	rc = mdss_dsi_debugfs_setup(pdata, panel_info.debugfs_info->root);
 	if (rc) {
@@ -1143,7 +1156,6 @@ static int mdss_dsi_off(struct mdss_panel_data *pdata, int power_state)
 	ctrl_pdata = container_of(pdata, struct mdss_dsi_ctrl_pdata,
 				panel_data);
 
-	mutex_lock(&ctrl_pdata->mutex);
 	panel_info = &ctrl_pdata->panel_data.panel_info;
 
 	pr_debug("%s+: ctrl=%p ndx=%d power_state=%d\n",
@@ -1201,9 +1213,6 @@ panel_power_ctrl:
 	/* Initialize Max Packet size for DCS reads */
 	ctrl_pdata->cur_max_pkt_size = 0;
 end:
-	mutex_unlock(&ctrl_pdata->mutex);
-		printk("%s end\n",__func__);
-
 	pr_debug("%s-:\n", __func__);
 
 	return ret;
@@ -1307,8 +1316,6 @@ static int mdss_dsi_update_panel_config(struct mdss_dsi_ctrl_pdata *ctrl_pdata,
 	ctrl_pdata->panel_mode = pinfo->mipi.mode;
 	mdss_panel_get_dst_fmt(pinfo->bpp, pinfo->mipi.mode,
 			pinfo->mipi.pixel_packing, &(pinfo->mipi.dst_format));
-	pinfo->cont_splash_enabled = 0;
-
 	return ret;
 }
 
@@ -1702,6 +1709,38 @@ int mdss_dsi_cont_splash_on(struct mdss_panel_data *pdata)
 	return ret;
 }
 
+static void __mdss_dsi_mask_dfps_errors(struct mdss_dsi_ctrl_pdata *ctrl,
+		bool mask)
+{
+	u32 data = 0;
+
+	/*
+	 * Assumption is that the DSI clocks will be enabled
+	 * when this API is called from dfps thread
+	 */
+	if (mask) {
+		/* mask FIFO underflow and PLL unlock bits */
+		mdss_dsi_set_reg(ctrl, 0x10c, 0x7c000000, 0x7c000000);
+	} else {
+		data = MIPI_INP((ctrl->ctrl_base) + 0x0120);
+		if (data & BIT(16)) {
+			pr_debug("pll unlocked: 0x%x\n", data);
+			/* clear PLL unlock bit */
+			MIPI_OUTP((ctrl->ctrl_base) + 0x120, BIT(16));
+		}
+
+		data = MIPI_INP((ctrl->ctrl_base) + 0x00c);
+		if (data & 0x88880000) {
+			pr_debug("dsi fifo underflow: 0x%x\n", data);
+			/* clear DSI FIFO underflow and empty */
+			MIPI_OUTP((ctrl->ctrl_base) + 0x00c, 0x99990000);
+		}
+
+		/* restore FIFO underflow and PLL unlock bits */
+		mdss_dsi_set_reg(ctrl, 0x10c, 0x7c000000, 0x0);
+	}
+}
+
 static void __mdss_dsi_update_video_mode_total(struct mdss_panel_data *pdata,
 		int new_fps)
 {
@@ -1911,7 +1950,6 @@ static int __mdss_dsi_dfps_update_clks(struct mdss_panel_data *pdata,
 	struct mdss_dsi_ctrl_pdata *sctrl_pdata = NULL;
 	struct mdss_panel_info *pinfo, *spinfo;
 	int rc = 0;
-	u32 data;
 
 	if (pdata == NULL) {
 		pr_err("%s Invalid pdata\n", __func__);
@@ -2021,7 +2059,7 @@ static int __mdss_dsi_dfps_update_clks(struct mdss_panel_data *pdata,
 	}
 
 	rc = mdss_dsi_en_wait4dynamic_done(ctrl_pdata);
-	if (rc) {
+	if (rc < 0) {
 		pr_err("Unsuccessful dynamic fps change");
 		goto dfps_timeout;
 	}
@@ -2031,12 +2069,16 @@ static int __mdss_dsi_dfps_update_clks(struct mdss_panel_data *pdata,
 		MIPI_OUTP((sctrl_pdata->ctrl_base) + DSI_DYNAMIC_REFRESH_CTRL,
 				0x00);
 
-	data = MIPI_INP((ctrl_pdata->ctrl_base) + 0x0120);
-	if (data & BIT(16)) {
-		pr_debug("pll unlocked: 0x%x\n", data);
-		/* clear PLL unlock bit */
-		MIPI_OUTP((ctrl_pdata->ctrl_base) + 0x120, BIT(16));
+	rc = mdss_dsi_phy_pll_reset_status(ctrl_pdata);
+	if (rc) {
+		pr_err("%s: pll cannot be locked reset core ready failed %d\n",
+			__func__, rc);
+		goto dfps_timeout;
 	}
+
+	__mdss_dsi_mask_dfps_errors(ctrl_pdata, false);
+	if (sctrl_pdata)
+		__mdss_dsi_mask_dfps_errors(sctrl_pdata, false);
 
 	/* Move the mux clocks to main byte and pixel clocks */
 	rc = clk_set_parent(ctrl_pdata->mux_byte_clk,
@@ -2164,6 +2206,9 @@ static int mdss_dsi_dfps_config(struct mdss_panel_data *pdata, int new_fps)
 		__mdss_dsi_update_video_mode_total(pdata, new_fps);
 	} else if (pinfo->dfps_update == DFPS_IMMEDIATE_CLK_UPDATE_MODE) {
 		/* Clock update method */
+
+		__mdss_dsi_mask_dfps_errors(ctrl_pdata, true);
+
 		if (phy_rev == DSI_PHY_REV_20) {
 			rc = mdss_dsi_phy_calc_timing_param(pinfo, phy_rev,
 					new_fps);
@@ -2673,6 +2718,7 @@ static struct device_node *mdss_dsi_find_panel_of_node(
 	struct mdss_panel_info *pinfo = &ctrl_pdata->panel_data.panel_info;
 
 	len = strlen(panel_cfg);
+	ctrl_pdata->panel_data.dsc_cfg_np_name[0] = '\0';
 	if (!len) {
 		/* no panel cfg chg, parse dt */
 		pr_debug("%s:%d: no cmd line cfg present\n",
@@ -2756,18 +2802,11 @@ static struct device_node *mdss_dsi_find_panel_of_node(
 					strlcpy(cfg_np_name, str2,
 						MDSS_MAX_PANEL_LEN);
 				}
-			}
-
-			pr_debug("%s: cfg_np_name:%s\n", __func__, cfg_np_name);
-			if (str2) {
-				ctrl_pdata->panel_data.cfg_np =
-					of_get_child_by_name(dsi_pan_node,
-					cfg_np_name);
-				if (!ctrl_pdata->panel_data.cfg_np)
-					pr_warn("%s: can't find config node:%s. either no such node or bad name\n",
-						__func__, cfg_np_name);
+				strlcpy(ctrl_pdata->panel_data.dsc_cfg_np_name,
+					cfg_np_name, MDSS_MAX_PANEL_LEN);
 			}
 		}
+
 		return dsi_pan_node;
 	}
 end:

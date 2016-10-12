@@ -98,7 +98,7 @@ static struct adreno_device device_3d0 = {
 	.input_work = __WORK_INITIALIZER(device_3d0.input_work,
 		adreno_input_work),
 	.pwrctrl_flag = BIT(ADRENO_SPTP_PC_CTRL) | BIT(ADRENO_PPD_CTRL) |
-		BIT(ADRENO_LM_CTRL),
+		BIT(ADRENO_LM_CTRL) | BIT(ADRENO_HWCG_CTRL),
 	.profile.enabled = false,
 	.active_list = LIST_HEAD_INIT(device_3d0.active_list),
 	.active_list_lock = __SPIN_LOCK_UNLOCKED(device_3d0.active_list_lock),
@@ -1305,6 +1305,28 @@ static void _update_threshold_count(struct adreno_device *adreno_dev,
 		adreno_dev->lm_threshold_cross = adj;
 }
 
+static void _set_secvid(struct kgsl_device *device)
+{
+	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
+
+	/* Program GPU contect protection init values */
+	if (device->mmu.secured) {
+		if (adreno_is_a4xx(adreno_dev))
+			adreno_writereg(adreno_dev,
+				ADRENO_REG_RBBM_SECVID_TRUST_CONFIG, 0x2);
+		adreno_writereg(adreno_dev,
+				ADRENO_REG_RBBM_SECVID_TSB_CONTROL, 0x0);
+
+		adreno_writereg64(adreno_dev,
+			ADRENO_REG_RBBM_SECVID_TSB_TRUSTED_BASE,
+			ADRENO_REG_RBBM_SECVID_TSB_TRUSTED_BASE_HI,
+			KGSL_IOMMU_SECURE_BASE);
+		adreno_writereg(adreno_dev,
+			ADRENO_REG_RBBM_SECVID_TSB_TRUSTED_SIZE,
+			KGSL_IOMMU_SECURE_SIZE);
+	}
+}
+
 /**
  * _adreno_start - Power up the GPU and prepare to accept commands
  * @adreno_dev: Pointer to an adreno_device structure
@@ -1353,22 +1375,7 @@ static int _adreno_start(struct adreno_device *adreno_dev)
 	if (status)
 		goto error_pwr_off;
 
-	/* Program GPU contect protection init values */
-	if (device->mmu.secured) {
-		if (adreno_is_a4xx(adreno_dev))
-			adreno_writereg(adreno_dev,
-				ADRENO_REG_RBBM_SECVID_TRUST_CONFIG, 0x2);
-		adreno_writereg(adreno_dev,
-				ADRENO_REG_RBBM_SECVID_TSB_CONTROL, 0x0);
-
-		adreno_writereg64(adreno_dev,
-			ADRENO_REG_RBBM_SECVID_TSB_TRUSTED_BASE,
-			ADRENO_REG_RBBM_SECVID_TSB_TRUSTED_BASE_HI,
-			KGSL_IOMMU_SECURE_BASE);
-		adreno_writereg(adreno_dev,
-			ADRENO_REG_RBBM_SECVID_TSB_TRUSTED_SIZE,
-			KGSL_IOMMU_SECURE_SIZE);
-	}
+	_set_secvid(device);
 
 	status = adreno_ocmem_malloc(adreno_dev);
 	if (status) {
@@ -1740,6 +1747,30 @@ static int adreno_getproperty(struct kgsl_device *device,
 			}
 			if (copy_to_user(value, &shadowprop,
 				sizeof(shadowprop))) {
+				status = -EFAULT;
+				break;
+			}
+			status = 0;
+		}
+		break;
+	case KGSL_PROP_DEVICE_QDSS_STM:
+		{
+			struct kgsl_qdss_stm_prop qdssprop = {0};
+			struct kgsl_memdesc *qdss_desc =
+				kgsl_mmu_get_qdss_global_entry(device);
+
+			if (sizebytes != sizeof(qdssprop)) {
+				status = -EINVAL;
+				break;
+			}
+
+			if (qdss_desc) {
+				qdssprop.gpuaddr = qdss_desc->gpuaddr;
+				qdssprop.size = qdss_desc->size;
+			}
+
+			if (copy_to_user(value, &qdssprop,
+						sizeof(qdssprop))) {
 				status = -EFAULT;
 				break;
 			}
@@ -2128,6 +2159,8 @@ static int adreno_soft_reset(struct kgsl_device *device)
 
 	/* start of new CFF after reset */
 	kgsl_cffdump_open(device);
+
+	_set_secvid(device);
 
 	/* Enable 64 bit gpu addr if feature is set */
 	if (gpudev->enable_64bit &&
@@ -2556,7 +2589,7 @@ static void adreno_power_stats(struct kgsl_device *device,
 	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
 	struct kgsl_pwrctrl *pwr = &device->pwrctrl;
 	struct adreno_busy_data *busy = &adreno_dev->busy_data;
-	uint64_t adj;
+	uint64_t adj = 0;
 
 	memset(stats, 0, sizeof(*stats));
 
