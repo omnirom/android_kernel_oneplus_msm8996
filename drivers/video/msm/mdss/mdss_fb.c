@@ -619,6 +619,8 @@ static ssize_t mdss_fb_force_panel_dead(struct device *dev,
 		return len;
 	}
 
+	mdss_fb_report_panel_dead(mfd);
+
 	if (kstrtouint(buf, 0, &pdata->panel_info.panel_force_dead))
 		pr_err("kstrtouint buf error!\n");
 
@@ -1737,6 +1739,7 @@ static int mdss_fb_blank_unblank(struct msm_fb_data_type *mfd)
 {
 	int ret = 0;
 	int cur_power_state;
+	struct mdss_mdp_ctl *ctl = mfd_to_ctl(mfd);
 
 	if (!mfd)
 		return -EINVAL;
@@ -1818,6 +1821,8 @@ static int mdss_fb_blank_unblank(struct msm_fb_data_type *mfd)
 	}
 
 error:
+	if (!ctl->panel_data->panel_info.cont_splash_enabled)
+		mfd->first_frame = 1;
 	return ret;
 }
 
@@ -3517,6 +3522,10 @@ static int __mdss_fb_perform_commit(struct msm_fb_data_type *mfd)
 	}
 
 skip_commit:
+	if(mfd->first_frame) {
+		mfd->first_frame = 0;
+		mdss_fb_send_panel_event(mfd, MDSS_EVENT_POST_PANEL_ON, NULL);
+	}
 	if (!ret)
 		mdss_fb_update_backlight(mfd);
 

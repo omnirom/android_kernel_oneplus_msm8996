@@ -33,6 +33,8 @@
 
 #include "power.h"
 
+extern void thaw_fingerprintd(void);
+
 const char *pm_labels[] = { "mem", "standby", "freeze", NULL };
 const char *pm_states[PM_SUSPEND_MAX];
 
@@ -387,6 +389,7 @@ static int suspend_enter(suspend_state_t state, bool *wakeup)
 
  Platform_wake:
 	platform_resume_noirq(state);
+	thaw_fingerprintd();
 	dpm_resume_noirq(PMSG_RESUME);
 
  Platform_early_resume:
@@ -547,7 +550,9 @@ int pm_suspend(suspend_state_t state)
 		return -EINVAL;
 
 	pm_suspend_marker("entry");
+
 	error = enter_state(state);
+
 	if (error) {
 		suspend_stats.fail++;
 		dpm_save_failed_errno(error);
