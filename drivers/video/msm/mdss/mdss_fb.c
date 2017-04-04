@@ -842,11 +842,7 @@ static ssize_t mdss_fb_get_max_brightness(struct device *dev,
 	level = mdss_fb_send_panel_event(mfd, MDSS_EVENT_PANEL_GET_MAX_BRIGHTNESS,
 			NULL);
 
-	ret=scnprintf(buf, PAGE_SIZE, "max brightness level = %d\n"
-					                        "0-->max brightness level 380nit\n"
-											"1-->max brightness level 430nit\n"
-											"2-->HBM Enabled\n",
-											level&0x000F);
+	ret=scnprintf(buf, PAGE_SIZE, "%d\n", level&0x000F);
 	return ret;
 }
 
@@ -888,10 +884,7 @@ static ssize_t mdss_fb_get_srgb_mode(struct device *dev,
 	level = mdss_fb_send_panel_event(mfd, MDSS_EVENT_PANEL_GET_SRGB_MODE,
 			NULL);
 
-	ret=scnprintf(buf, PAGE_SIZE, "mode = %d\n"
-					                        "0-->sRGB Mode OFF\n"
-											"1-->sRGB Mode ON\n",
-										    level);
+	ret=scnprintf(buf, PAGE_SIZE, "%d\n", level);
 	return ret;
 }
 
