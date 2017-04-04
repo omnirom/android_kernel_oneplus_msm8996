@@ -22,18 +22,6 @@
 bool pdaf_calibration_flag = false;
 uint32_t is_pdaf_supported = 0;
 
-#include <linux/project_info.h>
-struct camera_vendor_match_tbl {
-    char sensor_name[32];
-    char vendor_name[32];
-};
-static struct camera_vendor_match_tbl match_tbl[] = {
-    {"imx298","Sony"},
-    {"imx179","Sony"},
-    {"s5k3p8","Samsung"},
-    {"s5k3p8sp","Samsung"},
-};
-
 /* Logging macro */
 #undef CDBG
 #define CDBG(fmt, args...) pr_debug(fmt, ##args)
@@ -196,6 +184,7 @@ static int32_t msm_sensor_fill_eeprom_subdevid_by_name(
 	 * string for eeprom name is valid, set sudev id to -1
 	 *  and try to found new id
 	 */
+	*eeprom_subdev_id = -1;
 
 	if (0 == eeprom_name_len)
 		return 0;
@@ -204,7 +193,6 @@ static int32_t msm_sensor_fill_eeprom_subdevid_by_name(
 	if (!p || !count)
 		return 0;
 
-	*eeprom_subdev_id = -1;
 	count /= sizeof(uint32_t);
 	for (i = 0; i < count; i++) {
 		userspace_probe = 0;
@@ -658,8 +646,6 @@ int32_t msm_sensor_driver_probe(void *setting,
 	struct msm_camera_cci_client        *cci_client = NULL;
 	struct msm_camera_sensor_slave_info *slave_info = NULL;
 	struct msm_camera_slave_info        *camera_info = NULL;
-	uint32_t count = 0,i;
-	enum COMPONENT_TYPE CameraID;
 
 	unsigned long                        mount_pos = 0;
 	uint32_t                             is_yuv;
@@ -970,23 +956,6 @@ CSID_TG:
 	/*Save sensor info*/
 	s_ctrl->sensordata->cam_slave_info = slave_info;
 
-    if (0 == slave_info->camera_id)
-        CameraID = R_CAMERA;
-    else
-        CameraID = F_CAMERA;
-    count = ARRAY_SIZE(match_tbl);
-    for (i = 0;i < count;i++) {
-        if (!strcmp(slave_info->sensor_name,match_tbl[i].sensor_name))
-            break;
-    }
-
-    if (i >= count)
-        pr_err("%s,Match camera sensor faild!,current sensor name is %s",
-            __func__,slave_info->sensor_name);
-    else
-        push_component_info(CameraID,match_tbl[i].sensor_name,
-            match_tbl[i].vendor_name);
-
 	msm_sensor_fill_sensor_info(s_ctrl, probed_info, entity_name);
 
 	return rc;
@@ -1107,12 +1076,6 @@ static int32_t msm_sensor_driver_get_dt_data(struct msm_sensor_ctrl_t *s_ctrl)
 
 	CDBG("%s qcom,mclk-23880000 = %d\n", __func__,
 		s_ctrl->set_mclk_23880000);
-
-	/* Read support-front-camera information */
-	of_property_read_string(of_node, "support-front-camera",
-		&s_ctrl->front_camera_name);
-	CDBG("%s support-front-camera : %s\n", __func__,
-		s_ctrl->front_camera_name);
 
     if (BACK_CAMERA_B == sensordata->sensor_info->position) {
       if (0 > of_property_read_u32(of_node, "qcom,pdaf-support", &is_pdaf_supported)) {

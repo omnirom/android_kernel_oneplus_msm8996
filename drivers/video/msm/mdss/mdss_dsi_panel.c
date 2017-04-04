@@ -26,9 +26,6 @@
 #include "mdss_dsi.h"
 #include "mdss_dba_utils.h"
 
-/*get lcd manufacture information yankelong add 2045-11-10*/
-#include <linux/project_info.h>
-
 #define DT_CMD_HDR 6
 #define MIN_REFRESH_RATE 48
 #define DEFAULT_MDP_TRANSFER_TIME 14000
@@ -986,6 +983,7 @@ static void mdss_dsi_panel_bl_ctrl(struct mdss_panel_data *pdata,
 	static int count = 1;
 
 	if(count || !bl_level){
+        printk("--------backlight level = %d---------\n",bl_level);
 		count = 0;
 		}
 
@@ -3001,10 +2999,7 @@ int mdss_dsi_panel_init(struct device_node *node,
 	int rc = 0;
 	static const char *panel_name;
 	struct mdss_panel_info *pinfo;
-	static const char *panel_manufacture;
-	static const char *panel_version;
-	static const char *backlight_manufacture;
-	static const char *backlight_version;
+
 	if (!node || !ctrl_pdata) {
 		pr_err("%s: Invalid arguments\n", __func__);
 		return -ENODEV;
@@ -3031,22 +3026,7 @@ int mdss_dsi_panel_init(struct device_node *node,
 	pinfo->dynamic_switch_pending = false;
 	pinfo->is_lpm_mode = false;
 	pinfo->esd_rdy = false;
-	panel_manufacture = of_get_property(node, "qcom,mdss-dsi-panel-manufacture", NULL);
-	if (!panel_manufacture)
-		pr_info("%s:%d, panel manufacture not specified\n", __func__, __LINE__);
-	else
-		pr_info("%s: Panel Manufacture = %s\n", __func__, panel_manufacture);
-	panel_version = of_get_property(node, "qcom,mdss-dsi-panel-version", NULL);
-	if (!panel_version)
-		pr_info("%s:%d, panel version not specified\n", __func__, __LINE__);
-	else
-		pr_info("%s: Panel Version = %s\n", __func__, panel_version);
 
-	backlight_version = of_get_property(node, "qcom,mdss-dsi-backlight-version", NULL);
-	backlight_manufacture =of_get_property(node, "qcom,mdss-dsi-backlight-manufacture", NULL);
-
-	push_component_info(LCD, (char *)panel_version, (char *)panel_manufacture);
-	push_component_info(BACKLIGHT, (char *)backlight_version, (char *)backlight_manufacture);
 	ctrl_pdata->high_brightness_panel= of_property_read_bool(node,
 					"qcom,mdss-dsi-high-brightness-panel");
         pr_err("high brightness panel: %d\n", ctrl_pdata->high_brightness_panel);

@@ -11,7 +11,6 @@
 #include <linux/gpio.h>
 #include <linux/of_gpio.h>
 #include <linux/slab.h>
-#include <linux/project_info.h>
 #include <linux/miscdevice.h>
 #include <linux/uaccess.h>
 #include <linux/power_supply.h>
@@ -25,8 +24,6 @@
 #define READ_COUNT			192
 #define	FW_CHECK_FAIL		0
 #define	FW_CHECK_SUCCESS	1
-
-#define SHOW_FW_VERSION_DELAY_MS 7000
 
 struct fastchg_device_info {
 	struct i2c_client		*client;
@@ -61,9 +58,6 @@ struct fastchg_device_info {
 	struct wake_lock fastchg_update_fireware_lock;
 
 	struct delayed_work		update_firmware;
-	struct delayed_work update_fireware_version_work;
-	char fw_id[12];
-	char manu_name[12];
 };
 
 struct fastchg_device_info *fastchg_di;
@@ -558,27 +552,13 @@ static void fastcg_work_func(struct work_struct *work)
 	struct fastchg_device_info *di = container_of(work,
 			struct fastchg_device_info,
 			fastcg_work);
-	pr_info("%s\n", __func__);
+	pr_debug("%s\n", __func__);
 	if (di->irq_enabled) {
 		free_irq(di->irq, di);
 		msleep(25);
 		di->irq_enabled = false;
 		wake_up(&di->read_wq);
 	}
-}
-
-static void update_fireware_version_func(struct work_struct *work)
-{
-	struct fastchg_device_info *di = container_of(work,
-			struct fastchg_device_info,
-			update_fireware_version_work.work);
-
-	if (!dashchg_firmware_data || di->dashchg_fw_ver_count == 0)
-		return;
-
-	sprintf(di->fw_id,"0x%x",dashchg_firmware_data[di->dashchg_fw_ver_count - 4]);
-	sprintf(di->manu_name,"%s","ONEPLUS");
-	push_component_info(FAST_CHARGE,di->fw_id,di->manu_name);
 }
 
 void di_watchdog(unsigned long data)
@@ -640,7 +620,7 @@ static int dash_read(struct fastchg_device_info *di)
 		bit = gpio_get_value(di->ap_data);
 		data |= bit<<(6-i);
 	}
-	pr_info("recv data:0x%x\n", data);
+	pr_debug("recv data:0x%x\n", data);
 	return data;
 }
 
@@ -1013,7 +993,6 @@ static int dash_probe(struct i2c_client *client, const struct i2c_device_id *id)
 
 	INIT_WORK(&di->fastcg_work,fastcg_work_func);
 	INIT_WORK(&di->charger_present_status_work,update_charger_present_status);
-	INIT_DELAYED_WORK(&di->update_fireware_version_work,update_fireware_version_func);
 	INIT_DELAYED_WORK(&di->update_firmware,dashchg_fw_update);
 
 	init_timer(&di->watchdog);
@@ -1032,8 +1011,6 @@ static int dash_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	mcu_init(di);
 
 	fastcharge_information_register(&fastcharge_information);
-	schedule_delayed_work(&di->update_fireware_version_work,
-			msecs_to_jiffies(SHOW_FW_VERSION_DELAY_MS));
 	pr_info("dash_probe success\n");
 
 	return 0;

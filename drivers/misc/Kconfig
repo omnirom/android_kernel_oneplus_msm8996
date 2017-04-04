@@ -607,14 +607,6 @@ config GPIO_SWITCH
 	default y
 	help
 	  we can use gpio switch set gpio out high or low
-
-#add by xcb
-config BOOTLOADER_LOG
-	tristate "show bootloader log"
-	depends on OF
-	default y
-	help
-	  show bootloader log in kernel
 	  
 config QPNP_MISC
 	tristate "QPNP Misc Peripheral"
