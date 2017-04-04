@@ -48,7 +48,6 @@
 #include <linux/fb.h>
 #endif /*CONFIG_FB*/
 
-#include <linux/param_rw.h>
 #include <linux/timer.h>
 #include <linux/timex.h>
 #include <linux/rtc.h>
@@ -298,7 +297,6 @@ struct smbchg_chip {
 	struct smbchg_regulator		otg_vreg;
 	struct smbchg_regulator		ext_otg_vreg;
 	struct work_struct		usb_set_online_work;
-	struct delayed_work		charger_type_record_work;
 	struct delayed_work		vfloat_adjust_work;
 	struct delayed_work		hvdcp_det_work;
 	spinlock_t			sec_access_lock;
@@ -2170,91 +2168,7 @@ static bool is_hvdcp_present(struct smbchg_chip *chip)
 	return false;
 }
 
-#define MAX_TYPE_RECORD_COUNT 48
-#define PARAM_CHG_TYPE_RECORD_SIZE 20
-#define PARAM_CHG_RECORD_DELAY_MS 15000
-
-struct charger_type_index_list {
-    const char *chg_type_name;
-    const char *charger_type_index;
-};
-
-static struct charger_type_index_list charger_type_index[] = {
-    { "SDP",     "1"},
-    { "OTHER",   "2"},
-    { "DCP",     "3"},
-    { "CDP",     "4"},
-    { "DASH",    "5"},
-    { "Absent",  "6"},
-    { "HVDCP",   "7"},
-    { "Other",   "8"},
-    { "NONE",    "9"},
-    { 0,          0 },
-};
-
 static bool get_prop_fast_chg_started(struct smbchg_chip *chip);
-void charger_type_record(struct work_struct *work)
-{
-	struct smbchg_chip *chip = container_of(work,
-			struct smbchg_chip,
-			charger_type_record_work.work);
-    char param_value[21];
-    char record_time[19];
-    int split = 0, times = 0;
-    int rc = 0;
-    int i = 0;
-    int charger_type_record_count=0;
-    int is_find_key_word=0;
-    struct rtc_time tm;
-    struct timespec64 tspec;
-    uint32 param_type_record_offset=0;
-	enum power_supply_type usb_supply_type;
-	char *name = "null";
-	if(!chip->usb_online)
-		return;
-
-	read_usb_type(chip, &name, &usb_supply_type);
-
-    for (i=0; charger_type_index[i].charger_type_index; i++) {
-        if (!strcmp(name, charger_type_index[i].chg_type_name)) {
-            /* Clean param_value buffer*/
-            memset(param_value, 0, sizeof(param_value));
-            __getnstimeofday64(&tspec);
-            if (sys_tz.tz_minuteswest < 0 || (tspec.tv_sec - sys_tz.tz_minuteswest*60) >= 0)
-                tspec.tv_sec -= sys_tz.tz_minuteswest * 60;
-            rtc_time_to_tm(tspec.tv_sec, &tm);
-            scnprintf(record_time,sizeof(record_time),"%02d%02d%02d_%02d:%02d:%02d|",
-            tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,tm.tm_hour, tm.tm_min, tm.tm_sec);
-            strcat(param_value, record_time);
-            /* Get  key word ID */
-            strcat(param_value, charger_type_index[i].charger_type_index);
-            /* If we find  key word in kmesg, enable store charger type record flag */
-            is_find_key_word = 1;
-        }
-    }
-
-    if(is_find_key_word) {
-        get_param_charger_type_count(&charger_type_record_count);
-        param_type_record_offset = offsetof(param_chg_type_record_t, type_record_0);
-        param_type_record_offset = param_type_record_offset + (charger_type_record_count * PARAM_CHG_TYPE_RECORD_SIZE);
-
-        pr_info("%s: charger_type_record: param_value = %s,dash_present=%d\n",__func__,param_value,chip->dash_present);
-
-        /* Write  record to PARAM */
-        split = sizeof(param_value)/4;
-        for (times = 0; times < split; times++) {
-            rc = set_param_charger_type_value(param_type_record_offset, &param_value[times*4], 4);
-            param_type_record_offset = param_type_record_offset + 4;
-        }
-
-        /* Counter+1 */
-        charger_type_record_count = charger_type_record_count + 1;
-        charger_type_record_count = charger_type_record_count % MAX_TYPE_RECORD_COUNT;
-        set_param_charger_type_count(&charger_type_record_count);
-        chip->record_chg_type_count++;
-    }
-}
-
 
 #define FCC_CFG			0xF2
 #define FCC_500MA_VAL		0x4
@@ -5489,8 +5403,6 @@ static void handle_usb_insertion(struct smbchg_chip *chip)
 			}
 		}
 	}
-	schedule_delayed_work(&chip->charger_type_record_work,
-		msecs_to_jiffies(PARAM_CHG_RECORD_DELAY_MS));
 }
 
 void update_usb_status(struct smbchg_chip *chip, bool usb_present, bool force)
@@ -9611,11 +9523,9 @@ static int set_dash_charger_present(int status)
 			pr_info("set dash online\n");
 			power_supply_set_supply_type(g_chip->usb_psy, POWER_SUPPLY_TYPE_DASH);
 			power_supply_set_current_limit(g_chip->usb_psy, DEFAULT_WALL_CHG_MA * 1000);
-			schedule_delayed_work(&g_chip->charger_type_record_work,
-			msecs_to_jiffies(PARAM_CHG_RECORD_DELAY_MS));
 		}
 		power_supply_changed(&g_chip->batt_psy);
-		pr_info("dash_present = %d, charger_present = %d\n",
+		pr_debug("dash_present = %d, charger_present = %d\n",
 				g_chip->dash_present, charger_present);
 	} else {
 		pr_err("set_dash_charger_present error\n");
@@ -9959,7 +9869,6 @@ static int smbchg_probe(struct spmi_device *spmi)
 		return PTR_ERR(chip->hvdcp_enable_votable);
 
 	INIT_WORK(&chip->usb_set_online_work, smbchg_usb_update_online_work);
-	INIT_DELAYED_WORK(&chip->charger_type_record_work, charger_type_record);
 	INIT_DELAYED_WORK(&chip->parallel_en_work,
 			smbchg_parallel_usb_en_work);
 	INIT_DELAYED_WORK(&chip->vfloat_adjust_work, smbchg_vfloat_adjust_work);
