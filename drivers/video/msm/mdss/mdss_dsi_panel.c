@@ -843,7 +843,7 @@ enum brightness_setting_src_mask {
 
 #define DEFAULT_BRIGHTNESS_LEVEL 230
 #define MAX_BRIGHTNESS_LEVEL 255
-static int max_brightness_setting = DEFAULT_BRIGHTNESS_LEVEL;
+static int max_brightness_setting = MAX_BRIGHTNESS_LEVEL;
 static int pre_brightness_setting = 0;
 static int brightness_setting_src = 0;
 static int brightness_setting_level = 0;
@@ -854,6 +854,7 @@ remapping backlight 230-->255 to 200-->255
 **********************************************/
 static u32 backlight_remap(u32 level)
 {
+#ifdef BACKLIGHT_REMAP
     u32 temp = 0;
 #if 0
     temp = (level > max_brightness_setting)? max_brightness_setting: level;
@@ -867,8 +868,10 @@ static u32 backlight_remap(u32 level)
 	}
 #endif
 	return temp;
+#else
+    return level;
+#endif
 }
-
 /*********************************************************************************
 int level;
 1. auto backlight setting
@@ -983,7 +986,6 @@ static void mdss_dsi_panel_bl_ctrl(struct mdss_panel_data *pdata,
 	static int count = 1;
 
 	if(count || !bl_level){
-        printk("--------backlight level = %d---------\n",bl_level);
 		count = 0;
 		}
 
