@@ -1250,7 +1250,7 @@ static void gesture_judge(struct synaptics_ts_data *ts)
 }
 #endif
 /***************end****************/
-static char prlog_count = 0;
+//static char prlog_count = 0;
 #ifdef REPORT_2D_PRESSURE
 static unsigned char pres_value = 1;
 #endif
@@ -1383,8 +1383,8 @@ void int_touch(void)
 
 	if (finger_num == 0/* && last_status && (check_key <= 1)*/)
 	{
-		if (3 == (++prlog_count % 6))
-			TPD_ERR("all finger up\n");
+		//if (3 == (++prlog_count % 6))
+		//	TPD_DEBUG("all finger up\n");
 		input_report_key(ts->input_dev, BTN_TOOL_FINGER, 0);
 #ifndef TYPE_B_PROTOCOL
 		input_mt_sync(ts->input_dev);
@@ -1394,7 +1394,7 @@ void int_touch(void)
 
 	if ((finger_num == 0) && (get_tp_base == 0)){//all finger up do get base once
 		get_tp_base = 1;
-		TPD_ERR("start get base data:%d\n",get_tp_base);
+		TPD_DEBUG("start get base data:%d\n",get_tp_base);
 		tp_baseline_get(ts, false);
 	}
 
@@ -2499,7 +2499,7 @@ static int	synaptics_input_init(struct synaptics_ts_data *ts)
 		TPD_ERR("synaptics_ts_probe: Failed to allocate input device\n");
 		return ret;
 	}
-    ts->input_dev->name = TPD_DEVICE;;
+    ts->input_dev->name = TPD_DEVICE;
     ts->input_dev->dev.parent = &ts->client->dev;
 	set_bit(EV_SYN, ts->input_dev->evbit);
 	set_bit(EV_ABS, ts->input_dev->evbit);
@@ -4394,7 +4394,7 @@ static int synaptics_i2c_resume(struct device *dev)
 		disable_irq_wake(ts->irq);
 		synaptics_rmi4_i2c_write_byte(ts->client, 0xff, 0x00 );
 		ret = synaptics_rmi4_i2c_read_word(ts->client, F01_RMI_DATA_BASE);
-		TPD_ERR("%s check status:0x%x\n", __func__,ret&0xffff);
+		TPD_DEBUG("%s check status:0x%x\n", __func__,ret&0xffff);
 	}
 	return 0;
 }

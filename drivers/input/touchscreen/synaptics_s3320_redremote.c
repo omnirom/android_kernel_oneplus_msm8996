@@ -574,7 +574,7 @@ static ssize_t rmidev_write(struct file *filp, const char __user *buf,
 	ssize_t retval;
 	unsigned char tmpbuf[count + 1];
 	struct rmidev_data *dev_data = filp->private_data;
-    printk("synap %s\n",__func__);
+    //printk("synap %s\n",__func__);
 
 	if (IS_ERR(dev_data)) {
 		pr_err("%s: Pointer of char device data is invalid", __func__);
@@ -613,7 +613,7 @@ static int rmidev_create_attr(bool create) {
 	unsigned char attr_count;
 	struct input_dev *input_dev = remote_rmi4_get_input();
 
-    printk("synap %s\n",__func__);
+    //printk("synap %s\n",__func__);
 	if(!create)
 		goto err_sysfs_attrs ;
 
@@ -698,7 +698,7 @@ static int rmidev_open(struct inode *inp, struct file *filp)
 	int retval = 0;
 	struct rmidev_data *dev_data =
 			container_of(inp->i_cdev, struct rmidev_data, main_dev);
-    printk("synap %s\n",__func__);
+    //printk("synap %s\n",__func__);
 
 	if (!dev_data)
 		return -EACCES;

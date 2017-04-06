@@ -70,9 +70,7 @@ enum oem_boot_mode{
 
 /*------------------------------------------------Global Define--------------------------------------------*/
 #define TP_TEST_ENABLE 1
-#define TPD_NAME "synaptics"
 #define TPD_DEVICE "synaptics,s1302"
-#define LOG_TAG		"touchkey,s1302"
 
 #define SUPPORT_TP_SLEEP_MODE
 #define TYPE_B_PROTOCOL      //Multi-finger operation
@@ -82,13 +80,13 @@ enum oem_boot_mode{
 #define CONFIG_SYNAPTIC_RED
 
 /*********************for Debug LOG switch*******************/
-#define TPD_ERR(a, arg...)  pr_err(LOG_TAG ": " a, ##arg)
-#define TPDTM_DMESG(a, arg...)  printk(LOG_TAG ": " a, ##arg)
+#define TPD_ERR(a, arg...)  pr_err(TPD_DEVICE ": " a, ##arg)
+#define TPDTM_DMESG(a, arg...)  printk(TPD_DEVICE ": " a, ##arg)
 
 #define TPD_DEBUG(a,arg...)\
 	do{\
 		if(tp_debug)\
-		pr_err(LOG_TAG ": " a,##arg);\
+		pr_err(TPD_DEVICE ": " a,##arg);\
 	}while(0)
 
 
@@ -885,7 +883,7 @@ static int	synaptics_input_init(struct synaptics_ts_data *ts)
 		TPD_ERR("synaptics_ts_probe: Failed to allocate input device\n");
 		return ret;
 	}
-    ts->input_dev->name = TPD_NAME;
+    ts->input_dev->name = TPD_DEVICE;
     ts->input_dev->dev.parent = &ts->client->dev;
 	set_bit(EV_SYN, ts->input_dev->evbit);
 	set_bit(EV_KEY, ts->input_dev->evbit);
@@ -2012,11 +2010,11 @@ static int synaptics_ts_probe(struct i2c_client *client, const struct i2c_device
 	synaptics_rmi4_i2c_read_block(ts->client, F34_FLASH_CTRL_BASE, 4, buf);
 	CURRENT_FIRMWARE_ID = (buf[0]<<24) | (buf[1]<<16) | (buf[2]<<8) | buf[3];
 	TPD_ERR("CURRENT_FIRMWARE_ID = 0x%x\n", CURRENT_FIRMWARE_ID);
-    sprintf(ts->fw_id,"0x%x",CURRENT_FIRMWARE_ID);
+	sprintf(ts->fw_id,"0x%x",CURRENT_FIRMWARE_ID);
 
 	memset(ts->fw_name,0,TP_FW_NAME_MAX_LEN);
 	strcpy(ts->fw_name,"tp/fw_synaptics_touchkey.img");
-	TPD_DEBUG("synatpitcs_fw: fw_name = %s \n",ts->fw_name);
+	TPD_DEBUG("fw_name = %s \n",ts->fw_name);
 
 	bootloader_mode = synaptics_rmi4_i2c_read_byte(ts->client, F01_RMI_DATA_BASE);
 	bootloader_mode = bootloader_mode&0x40;
