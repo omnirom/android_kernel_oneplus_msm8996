@@ -924,10 +924,7 @@ static ssize_t mdss_fb_get_adobe_rgb_mode(struct device *dev,
 	level = mdss_fb_send_panel_event(mfd, MDSS_EVENT_PANEL_GET_ADOBE_RGB_MODE,
 			NULL);
 
-	ret=scnprintf(buf, PAGE_SIZE, "mode = %d\n"
-					                        "0-->Adobe RGB Mode OFF\n"
-											"1-->Adobe RGB Mode ON\n",
-										    level);
+	ret=scnprintf(buf, PAGE_SIZE, "%d\n", level);
 	return ret;
 }
 
@@ -952,7 +949,7 @@ static ssize_t mdss_fb_set_adobe_rgb_mode(struct device *dev,
 	return count;
 }
 
-static DEVICE_ATTR(Adobe_RGB, S_IRUGO | S_IWUSR,
+static DEVICE_ATTR(argb, S_IRUGO | S_IWUSR,
 	mdss_fb_get_adobe_rgb_mode, mdss_fb_set_adobe_rgb_mode);
 
 static ssize_t mdss_fb_get_dci_p3_mode(struct device *dev,
