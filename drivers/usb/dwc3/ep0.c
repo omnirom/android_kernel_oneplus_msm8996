@@ -729,6 +729,7 @@ static int dwc3_ep0_set_isoch_delay(struct dwc3 *dwc, struct usb_ctrlrequest *ct
 
 	return 0;
 }
+
 static struct notify_usb_enumeration_status *usb_enumeration_status = NULL;
 
 void regsister_notify_usb_enumeration_status(struct notify_usb_enumeration_status *status)
