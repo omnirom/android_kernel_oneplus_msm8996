@@ -7315,7 +7315,6 @@ static int fg_init_irqs(struct fg_chip *chip)
 				return rc;
 			}
 
-
 			if (!chip->use_vbat_low_empty_soc) {
 				rc = devm_request_irq(chip->dev,
 					chip->soc_irq[EMPTY_SOC].irq,
