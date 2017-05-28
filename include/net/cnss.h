@@ -18,7 +18,6 @@
 #include <linux/mmc/sdio_func.h>
 
 #ifdef CONFIG_CNSS
-#define MAX_FIRMWARE_SIZE (1 * 1024 * 1024)
 #define CNSS_MAX_FILE_NAME	20
 #define PINCTRL_SLEEP  0
 #define PINCTRL_ACTIVE 1
@@ -121,8 +120,6 @@ extern void cnss_wlan_unregister_driver(struct cnss_wlan_driver *driver);
 extern int cnss_get_fw_files(struct cnss_fw_files *pfw_files);
 extern int cnss_get_fw_files_for_target(struct cnss_fw_files *pfw_files,
 					u32 target_type, u32 target_version);
-extern void cnss_get_qca9377_fw_files(struct cnss_fw_files *pfw_files,
-					u32 size, u32 tufello_dual_fw);
 
 extern int cnss_request_bus_bandwidth(int bandwidth);
 
