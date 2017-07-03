@@ -1192,10 +1192,10 @@ static void gesture_judge(struct synaptics_ts_data *ts)
 			keyCode = KEY_GESTURE_A;
 			break;
 		case LeftVee:
-			keyCode = KEY_GESTURE_RIGHT_V;
+			keyCode = KEY_GESTURE_LEFT_V;
 			break;
 		case RightVee:
-			keyCode = KEY_GESTURE_LEFT_V;
+			keyCode = KEY_GESTURE_RIGHT_V;
 			break;
 		case Circle:
 			keyCode = KEY_GESTURE_CIRCLE;
@@ -1673,32 +1673,6 @@ static ssize_t camera_enable_write_func(struct file *file, const char __user *bu
 	return count;
 }
 
-static ssize_t music_enable_read_func(struct file *file, char __user *user_buf, size_t count, loff_t *ppos)
-{
-	int ret = 0;
-	char page[PAGESIZE];
-
-	ret = sprintf(page, "%d\n", LeftVee_gesture && RightVee_gesture && DouSwip_gesture);
-	ret = simple_read_from_buffer(user_buf, count, ppos, page, strlen(page));
-
-	return ret;
-}
-
-static ssize_t music_enable_write_func(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
-{
-	int ret = 0;
-	struct synaptics_ts_data *ts = ts_g;
-
-	sscanf(buf, "%d", &ret);
-
-	DouSwip_gesture = ret;
-	LeftVee_gesture = ret;
-	RightVee_gesture = ret;
-	gesture_enable(ts);
-
-	return count;
-}
-
 static ssize_t double_swipe_enable_read_func(struct file *file, char __user *user_buf, size_t count, loff_t *ppos)
 {
 	int ret = 0;
@@ -1723,25 +1697,25 @@ static ssize_t double_swipe_enable_write_func(struct file *file, const char __us
 	return count;
 }
 
-static ssize_t flashlight_enable_read_func(struct file *file, char __user *user_buf, size_t count, loff_t *ppos)
+static ssize_t up_arrow_enable_read_func(struct file *file, char __user *user_buf, size_t count, loff_t *ppos)
 {
 	int ret = 0;
 	char page[PAGESIZE];
 
-	ret = sprintf(page, "%d\n", UpVee_gesture);
+	ret = sprintf(page, "%d\n", DownVee_gesture);
 	ret = simple_read_from_buffer(user_buf, count, ppos, page, strlen(page));
 
 	return ret;
 }
 
-static ssize_t flashlight_enable_write_func(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
+static ssize_t up_arrow_enable_write_func(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
 {
 	int ret = 0;
 	struct synaptics_ts_data *ts = ts_g;
 
 	sscanf(buf, "%d", &ret);
 
-	UpVee_gesture = ret;
+	DownVee_gesture = ret;
 	gesture_enable(ts);
 
 	return count;
@@ -1752,7 +1726,7 @@ static ssize_t down_arrow_enable_read_func(struct file *file, char __user *user_
 	int ret = 0;
 	char page[PAGESIZE];
 
-	ret = sprintf(page, "%d\n", DownVee_gesture);
+	ret = sprintf(page, "%d\n", UpVee_gesture);
 	ret = simple_read_from_buffer(user_buf, count, ppos, page, strlen(page));
 
 	return ret;
@@ -1765,7 +1739,7 @@ static ssize_t down_arrow_enable_write_func(struct file *file, const char __user
 
 	sscanf(buf, "%d", &ret);
 
-	DownVee_gesture = ret;
+	UpVee_gesture = ret;
 	gesture_enable(ts);
 
 	return count;
@@ -1855,13 +1829,6 @@ static const struct file_operations camera_enable_proc_fops = {
 	.owner = THIS_MODULE,
 };
 
-static const struct file_operations music_enable_proc_fops = {
-	.write = music_enable_write_func,
-	.read =  music_enable_read_func,
-	.open = simple_open,
-	.owner = THIS_MODULE,
-};
-
 static const struct file_operations double_swipe_enable_proc_fops = {
 	.write = double_swipe_enable_write_func,
 	.read =  double_swipe_enable_read_func,
@@ -1869,16 +1836,16 @@ static const struct file_operations double_swipe_enable_proc_fops = {
 	.owner = THIS_MODULE,
 };
 
-static const struct file_operations flashlight_enable_proc_fops = {
-	.write = flashlight_enable_write_func,
-	.read =  flashlight_enable_read_func,
+static const struct file_operations down_arrow_enable_proc_fops = {
+    .write = down_arrow_enable_write_func,
+    .read =  down_arrow_enable_read_func,
 	.open = simple_open,
 	.owner = THIS_MODULE,
 };
 
-static const struct file_operations down_arrow_enable_proc_fops = {
-	.write = down_arrow_enable_write_func,
-	.read =  down_arrow_enable_read_func,
+static const struct file_operations up_arrow_enable_proc_fops = {
+	.write = up_arrow_enable_write_func,
+	.read =  up_arrow_enable_read_func,
 	.open = simple_open,
 	.owner = THIS_MODULE,
 };
@@ -3305,19 +3272,13 @@ static int init_synaptics_proc(void)
 		TPD_ERR("Couldn't create letter_o_enable\n");
 	}
 
-	prEntry_tmp = proc_create("music_enable", 0666, prEntry_tp, &music_enable_proc_fops);
-	if(prEntry_tmp == NULL){
-		ret = -ENOMEM;
-		TPD_ERR("Couldn't create music_enable\n");
-	}
-
 	prEntry_tmp = proc_create("double_swipe_enable", 0666, prEntry_tp, &double_swipe_enable_proc_fops);
 	if(prEntry_tmp == NULL){
 		ret = -ENOMEM;
         TPD_ERR("Couldn't create double_swipe_enable\n");
 	}
 
-	prEntry_tmp = proc_create("up_arrow_enable", 0666, prEntry_tp, &flashlight_enable_proc_fops);
+	prEntry_tmp = proc_create("up_arrow_enable", 0666, prEntry_tp, &up_arrow_enable_proc_fops);
 	if(prEntry_tmp == NULL){
 		ret = -ENOMEM;
         TPD_ERR("Couldn't create up_arrow_enable\n");
