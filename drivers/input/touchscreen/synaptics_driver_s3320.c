@@ -138,6 +138,10 @@ struct test_header {
 #define KEY_GESTURE_LEFT_V      253 // draw left arrow for previous track
 #define KEY_GESTURE_RIGHT_V     254 // draw right arrow for next track
 #define KEY_GESTURE_A           255
+#define KEY_GESTURE_SWIPE_RIGHT KEY_F5
+#define KEY_GESTURE_SWIPE_LEFT  KEY_F6
+#define KEY_GESTURE_SWIPE_DOWN  KEY_F7
+#define KEY_GESTURE_SWIPE_UP    KEY_F8
 
 #define BIT0 (0x1 << 0)
 #define BIT1 (0x1 << 1)
@@ -1203,6 +1207,18 @@ static void gesture_judge(struct synaptics_ts_data *ts)
 		case DouSwip:
 			keyCode = KEY_GESTURE_TWO_SWIPE;
 			break;
+		case Left2RightSwip:
+			keyCode = KEY_GESTURE_SWIPE_RIGHT;
+			break;
+		case Right2LeftSwip:
+			keyCode = KEY_GESTURE_SWIPE_LEFT;
+			break;
+		case Up2DownSwip:
+			keyCode = KEY_GESTURE_SWIPE_DOWN;
+			break;
+		case Down2UpSwip:
+			keyCode = KEY_GESTURE_SWIPE_UP;
+			break;
 		default:
 			break;
 	}
@@ -1219,16 +1235,21 @@ static void gesture_judge(struct synaptics_ts_data *ts)
 			gesture == Up2DownSwip ? "(up to down |)" :
 			gesture == Down2UpSwip ? "(down to up |)" :
 			gesture == Mgestrue ? "(M)" :
-			gesture == Wgestrue ? "(W)" : "[unknown]");
+			gesture == Wgestrue ? "(W)" :
+			"[unknown]");
 	synaptics_get_coordinate_point(ts);
 
-	TPD_DEBUG("gesture suport LeftVee:%d RightVee:%d DouSwip:%d Circle:%d UpVee:%d DouTap:%d DownVee:%d\n",\
-		LeftVee_gesture,RightVee_gesture,DouSwip_gesture,Circle_gesture,UpVee_gesture,DouTap_gesture,DownVee_gesture);
+	TPD_DEBUG("gesture suport LeftVee:%d RightVee:%d DouSwip:%d Circle:%d UpVee:%d DouTap:%d DownVee:%d\
+			Left2RightSwip:%d Right2LeftSwip:%d Up2DownSwip:%d Down2UpSwip:%d\n",
+		LeftVee_gesture,RightVee_gesture,DouSwip_gesture,Circle_gesture,UpVee_gesture,DouTap_gesture,DownVee_gesture,
+		Left2RightSwip_gesture, Right2LeftSwip_gesture, Up2DownSwip_gesture, Down2UpSwip_gesture);
 
-	if((gesture == DouTap && DouTap_gesture)||(gesture == RightVee && RightVee_gesture)\
-        ||(gesture == LeftVee && LeftVee_gesture)||(gesture == UpVee && UpVee_gesture)\
-        ||(gesture == Circle && Circle_gesture)||(gesture == DouSwip && DouSwip_gesture)\
-        ||(gesture == DownVee && DownVee_gesture)){
+	if((gesture == DouTap && DouTap_gesture)||(gesture == RightVee && RightVee_gesture)
+		||(gesture == LeftVee && LeftVee_gesture)||(gesture == UpVee && UpVee_gesture)
+		||(gesture == Circle && Circle_gesture)||(gesture == DouSwip && DouSwip_gesture)
+		||(gesture == DownVee && DownVee_gesture)||(gesture == Left2RightSwip && Left2RightSwip_gesture)
+		||(gesture == Right2LeftSwip && Right2LeftSwip_gesture)||(gesture == Up2DownSwip && Up2DownSwip_gesture)
+		||(gesture == Down2UpSwip && Down2UpSwip_gesture)){
 		gesture_upload = gesture;
 		input_report_key(ts->input_dev, keyCode, 1);
 		input_sync(ts->input_dev);
@@ -1574,7 +1595,8 @@ static ssize_t coordinate_proc_read_func(struct file *file, char __user *user_bu
 static void gesture_enable(struct synaptics_ts_data *ts)
 {
 	ts->gesture_enable = (DouTap_gesture || Circle_gesture || UpVee_gesture || DownVee_gesture ||
-                LeftVee_gesture || RightVee_gesture || DouSwip_gesture) ? 1 : 0;
+			LeftVee_gesture || RightVee_gesture || DouSwip_gesture || Right2LeftSwip_gesture ||
+			Left2RightSwip_gesture || Up2DownSwip_gesture || Down2UpSwip_gesture) ? 1 : 0;
 }
 
 static ssize_t gesture_switch_read_func(struct file *file, char __user *user_buf, size_t count, loff_t *ppos)
@@ -1793,6 +1815,101 @@ static ssize_t right_arrow_enable_write_func(struct file *file, const char __use
 	return count;
 }
 
+static ssize_t left_swipe_enable_read_func(struct file *file, char __user *user_buf, size_t count, loff_t *ppos)
+{
+	int ret = 0;
+	char page[PAGESIZE];
+	
+	ret = sprintf(page, "%d\n", Left2RightSwip_gesture);
+	ret = simple_read_from_buffer(user_buf, count, ppos, page, strlen(page));
+	
+	return ret;
+}
+
+static ssize_t left_swipe_enable_write_func(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
+{
+	int ret = 0;
+	struct synaptics_ts_data *ts = ts_g;
+	
+	sscanf(buf, "%d", &ret);
+	
+	Left2RightSwip_gesture = ret;
+	gesture_enable(ts);
+	
+	return count;
+}
+
+static ssize_t right_swipe_enable_read_func(struct file *file, char __user *user_buf, size_t count, loff_t *ppos)
+{
+	int ret = 0;
+	char page[PAGESIZE];
+	
+	ret = sprintf(page, "%d\n", Right2LeftSwip_gesture);
+	ret = simple_read_from_buffer(user_buf, count, ppos, page, strlen(page));
+	
+	return ret;
+}
+
+static ssize_t right_swipe_enable_write_func(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
+{
+	int ret = 0;
+	struct synaptics_ts_data *ts = ts_g;
+	
+	sscanf(buf, "%d", &ret);
+	
+	Right2LeftSwip_gesture = ret;
+	gesture_enable(ts);
+	
+	return count;
+}
+
+static ssize_t up_swipe_enable_read_func(struct file *file, char __user *user_buf, size_t count, loff_t *ppos)
+{
+	int ret = 0;
+	char page[PAGESIZE];
+	
+	ret = sprintf(page, "%d\n", Up2DownSwip_gesture);
+	ret = simple_read_from_buffer(user_buf, count, ppos, page, strlen(page));
+	
+	return ret;
+}
+
+static ssize_t up_swipe_enable_write_func(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
+{
+	int ret = 0;
+	struct synaptics_ts_data *ts = ts_g;
+	
+	sscanf(buf, "%d", &ret);
+	
+	Up2DownSwip_gesture = ret;
+	gesture_enable(ts);
+	
+	return count;
+}
+
+static ssize_t down_swipe_enable_read_func(struct file *file, char __user *user_buf, size_t count, loff_t *ppos)
+{
+	int ret = 0;
+	char page[PAGESIZE];
+	
+	ret = sprintf(page, "%d\n", Down2UpSwip_gesture);
+	ret = simple_read_from_buffer(user_buf, count, ppos, page, strlen(page));
+	
+	return ret;
+}
+
+static ssize_t down_swipe_enable_write_func(struct file *file, const char __user *buf, size_t count, loff_t *ppos)
+{
+	int ret = 0;
+	struct synaptics_ts_data *ts = ts_g;
+	
+	sscanf(buf, "%d", &ret);
+	
+	Down2UpSwip_gesture = ret;
+	gesture_enable(ts);
+	
+	return count;
+}
 // chenggang.li@BSP.TP modified for oem 2014-08-08 create node
 /******************************start****************************/
 static const struct file_operations tp_gesture_proc_fops = {
@@ -1860,6 +1977,34 @@ static const struct file_operations left_arrow_enable_proc_fops = {
 static const struct file_operations right_arrow_enable_proc_fops = {
 	.write = right_arrow_enable_write_func,
 	.read =  right_arrow_enable_read_func,
+	.open = simple_open,
+	.owner = THIS_MODULE,
+};
+
+static const struct file_operations left_swipe_enable_proc_fops = {
+	.write = left_swipe_enable_write_func,
+	.read =  left_swipe_enable_read_func,
+	.open = simple_open,
+	.owner = THIS_MODULE,
+};
+
+static const struct file_operations right_swipe_enable_proc_fops = {
+	.write = right_swipe_enable_write_func,
+	.read =  right_swipe_enable_read_func,
+	.open = simple_open,
+	.owner = THIS_MODULE,
+};
+
+static const struct file_operations up_swipe_enable_proc_fops = {
+	.write = up_swipe_enable_write_func,
+	.read =  up_swipe_enable_read_func,
+	.open = simple_open,
+	.owner = THIS_MODULE,
+};
+
+static const struct file_operations down_swipe_enable_proc_fops = {
+	.write = down_swipe_enable_write_func,
+	.read =  down_swipe_enable_read_func,
 	.open = simple_open,
 	.owner = THIS_MODULE,
 };
@@ -2609,6 +2754,10 @@ static int	synaptics_input_init(struct synaptics_ts_data *ts)
 	set_bit(KEY_GESTURE_TWO_SWIPE, ts->input_dev->keybit);
 	set_bit(KEY_GESTURE_LEFT_V, ts->input_dev->keybit);
 	set_bit(KEY_GESTURE_RIGHT_V, ts->input_dev->keybit);
+	set_bit(KEY_GESTURE_SWIPE_RIGHT, ts->input_dev->keybit);
+	set_bit(KEY_GESTURE_SWIPE_LEFT, ts->input_dev->keybit);
+	set_bit(KEY_GESTURE_SWIPE_DOWN, ts->input_dev->keybit);
+	set_bit(KEY_GESTURE_SWIPE_UP, ts->input_dev->keybit);
 #endif
 	/* For multi touch */
 	input_set_abs_params(ts->input_dev, ABS_MT_TOUCH_MAJOR, 0, 255, 0, 0);
@@ -3300,6 +3449,30 @@ static int init_synaptics_proc(void)
 	if(prEntry_tmp == NULL){
 		ret = -ENOMEM;
 		TPD_ERR("Couldn't create right_arrow_enable\n");
+	}
+
+	prEntry_tmp = proc_create("left_swipe_enable", 0666, prEntry_tp, &left_swipe_enable_proc_fops);
+	if(prEntry_tmp == NULL){
+		ret = -ENOMEM;
+		TPD_ERR("Couldn't create left_swipe\n");
+	}
+
+	prEntry_tmp = proc_create("right_swipe_enable", 0666, prEntry_tp, &right_swipe_enable_proc_fops);
+	if(prEntry_tmp == NULL){
+		ret = -ENOMEM;
+		TPD_ERR("Couldn't create right_swipe_enable\n");
+	}
+
+	prEntry_tmp = proc_create("up_swipe_enable", 0666, prEntry_tp, &up_swipe_enable_proc_fops);
+	if(prEntry_tmp == NULL){
+		ret = -ENOMEM;
+		TPD_ERR("Couldn't create up_swipe_enable\n");
+	}
+
+	prEntry_tmp = proc_create("down_swipe_enable", 0666, prEntry_tp, &down_swipe_enable_proc_fops);
+	if(prEntry_tmp == NULL){
+		ret = -ENOMEM;
+		TPD_ERR("Couldn't create down_swipe_enable\n");
 	}
 #endif
 
