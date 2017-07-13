@@ -1820,7 +1820,7 @@ static ssize_t left_swipe_enable_read_func(struct file *file, char __user *user_
 	int ret = 0;
 	char page[PAGESIZE];
 	
-	ret = sprintf(page, "%d\n", Left2RightSwip_gesture);
+	ret = sprintf(page, "%d\n", Right2LeftSwip_gesture);
 	ret = simple_read_from_buffer(user_buf, count, ppos, page, strlen(page));
 	
 	return ret;
@@ -1833,7 +1833,7 @@ static ssize_t left_swipe_enable_write_func(struct file *file, const char __user
 	
 	sscanf(buf, "%d", &ret);
 	
-	Left2RightSwip_gesture = ret;
+	Right2LeftSwip_gesture = ret;
 	gesture_enable(ts);
 	
 	return count;
@@ -1844,7 +1844,7 @@ static ssize_t right_swipe_enable_read_func(struct file *file, char __user *user
 	int ret = 0;
 	char page[PAGESIZE];
 	
-	ret = sprintf(page, "%d\n", Right2LeftSwip_gesture);
+	ret = sprintf(page, "%d\n", Left2RightSwip_gesture);
 	ret = simple_read_from_buffer(user_buf, count, ppos, page, strlen(page));
 	
 	return ret;
@@ -1857,7 +1857,7 @@ static ssize_t right_swipe_enable_write_func(struct file *file, const char __use
 	
 	sscanf(buf, "%d", &ret);
 	
-	Right2LeftSwip_gesture = ret;
+	Left2RightSwip_gesture = ret;
 	gesture_enable(ts);
 	
 	return count;
@@ -1868,7 +1868,7 @@ static ssize_t up_swipe_enable_read_func(struct file *file, char __user *user_bu
 	int ret = 0;
 	char page[PAGESIZE];
 	
-	ret = sprintf(page, "%d\n", Up2DownSwip_gesture);
+	ret = sprintf(page, "%d\n", Down2UpSwip_gesture);
 	ret = simple_read_from_buffer(user_buf, count, ppos, page, strlen(page));
 	
 	return ret;
@@ -1881,7 +1881,7 @@ static ssize_t up_swipe_enable_write_func(struct file *file, const char __user *
 	
 	sscanf(buf, "%d", &ret);
 	
-	Up2DownSwip_gesture = ret;
+	Down2UpSwip_gesture = ret;
 	gesture_enable(ts);
 	
 	return count;
@@ -1892,7 +1892,7 @@ static ssize_t down_swipe_enable_read_func(struct file *file, char __user *user_
 	int ret = 0;
 	char page[PAGESIZE];
 	
-	ret = sprintf(page, "%d\n", Down2UpSwip_gesture);
+	ret = sprintf(page, "%d\n", Up2DownSwip_gesture);
 	ret = simple_read_from_buffer(user_buf, count, ppos, page, strlen(page));
 	
 	return ret;
@@ -1905,7 +1905,7 @@ static ssize_t down_swipe_enable_write_func(struct file *file, const char __user
 	
 	sscanf(buf, "%d", &ret);
 	
-	Down2UpSwip_gesture = ret;
+	Up2DownSwip_gesture = ret;
 	gesture_enable(ts);
 	
 	return count;
