@@ -219,11 +219,11 @@ static struct proc_dir_entry *prEntry_tp = NULL;
 
 
 #ifdef SUPPORT_GESTURE
-static uint32_t clockwise;
 static uint32_t gesture;
 
+#if 0
 static uint32_t gesture_upload;
-
+static uint32_t clockwise;
 /****point position*****/
 struct Coordinate {
 	uint32_t x;
@@ -235,6 +235,7 @@ static struct Coordinate Point_1st;
 static struct Coordinate Point_2nd;
 static struct Coordinate Point_3rd;
 static struct Coordinate Point_4th;
+#endif
 #endif
 
 /*-----------------------------------------Global Registers----------------------------------------------*/
@@ -1068,6 +1069,7 @@ static int synaptics_rmi4_i2c_write_word(struct i2c_client* client,
 //chenggang.li@BSP.TP modified for oem 2014-08-05 gesture_judge
 /***************start****************/
 #ifdef SUPPORT_GESTURE
+#if 0
 static void synaptics_get_coordinate_point(struct synaptics_ts_data *ts)
 {
 	int ret,i;
@@ -1113,6 +1115,7 @@ static void synaptics_get_coordinate_point(struct synaptics_ts_data *ts)
 	clockwise     = (coordinate_buf[24] & 0x10) ? 1 :
 		(coordinate_buf[24] & 0x20) ? 0 : 2; // 1--clockwise, 0--anticlockwise, not circle, report 2
 }
+#endif
 
 static void gesture_judge(struct synaptics_ts_data *ts)
 {
@@ -1237,10 +1240,11 @@ static void gesture_judge(struct synaptics_ts_data *ts)
 			gesture == Mgestrue ? "(M)" :
 			gesture == Wgestrue ? "(W)" :
 			"[unknown]");
+#if 0
 	synaptics_get_coordinate_point(ts);
+#endif
 
-	TPD_DEBUG("gesture suport LeftVee:%d RightVee:%d DouSwip:%d Circle:%d UpVee:%d DouTap:%d DownVee:%d\
-			Left2RightSwip:%d Right2LeftSwip:%d Up2DownSwip:%d Down2UpSwip:%d\n",
+	TPD_DEBUG("gesture suport LeftVee:%d RightVee:%d DouSwip:%d Circle:%d UpVee:%d DouTap:%d DownVee:%d Left2RightSwip:%d Right2LeftSwip:%d Up2DownSwip:%d Down2UpSwip:%d\n",
 		LeftVee_gesture,RightVee_gesture,DouSwip_gesture,Circle_gesture,UpVee_gesture,DouTap_gesture,DownVee_gesture,
 		Left2RightSwip_gesture, Right2LeftSwip_gesture, Up2DownSwip_gesture, Down2UpSwip_gesture);
 
@@ -1250,7 +1254,9 @@ static void gesture_judge(struct synaptics_ts_data *ts)
 		||(gesture == DownVee && DownVee_gesture)||(gesture == Left2RightSwip && Left2RightSwip_gesture)
 		||(gesture == Right2LeftSwip && Right2LeftSwip_gesture)||(gesture == Up2DownSwip && Up2DownSwip_gesture)
 		||(gesture == Down2UpSwip && Down2UpSwip_gesture)){
+#if 0
 		gesture_upload = gesture;
+#endif
 		input_report_key(ts->input_dev, keyCode, 1);
 		input_sync(ts->input_dev);
 		input_report_key(ts->input_dev, keyCode, 0);
@@ -1422,7 +1428,7 @@ void int_touch(void)
 		gesture_judge(ts);
 	}
 #endif
-    INT_TOUCH_END:
+INT_TOUCH_END:
 	mutex_unlock(&ts->mutexreport);
 }
 
@@ -1432,7 +1438,7 @@ static void synaptics_ts_work_func(struct work_struct *work)
 	uint8_t status = 0;
 	uint8_t inte = 0;
 
-    	struct synaptics_ts_data *ts = ts_g;
+	struct synaptics_ts_data *ts = ts_g;
 
 	if (atomic_read(&ts->is_stop) == 1)
 	{
@@ -1447,14 +1453,16 @@ static void synaptics_ts_work_func(struct work_struct *work)
 	ret = synaptics_rmi4_i2c_read_word(ts->client, F01_RMI_DATA_BASE);
 
 	if( ret < 0 ) {
-		TPDTM_DMESG("Synaptic:ret = %d\n", ret);
+		TPD_ERR("Synaptic:ret = %d\n", ret);
         synaptics_hard_reset(ts);
 		goto END;
 	}
 	status = ret & 0xff;
 	inte = (ret & 0x7f00)>>8;
-	//TPD_ERR("%s status[0x%x],inte[0x%x]\n",__func__,status,inte);
-        if(status & 0x80){
+	if ((ts->is_suspended == 1) && (ts->gesture_enable == 1)){
+		TPD_DEBUG("%s status[0x%x],inte[0x%x]\n",__func__,status,inte);
+	}
+	if(status & 0x80){
 		TPD_DEBUG("enter reset tp status,and ts->in_gesture_mode is:%d\n",ts->in_gesture_mode);
 		status_check = synaptics_init_panel(ts);
 		if (status_check < 0) {
@@ -1577,6 +1585,8 @@ static ssize_t tp_gesture_write_func(struct file *file, const char __user *buffe
     }
 	return count;
 }
+
+#if 0
 static ssize_t coordinate_proc_read_func(struct file *file, char __user *user_buf, size_t count, loff_t *ppos)
 {
 	int ret = 0;
@@ -1591,6 +1601,7 @@ static ssize_t coordinate_proc_read_func(struct file *file, char __user *user_bu
 	ret = simple_read_from_buffer(user_buf, count, ppos, page, strlen(page));
 	return ret;
 }
+#endif
 
 static void gesture_enable(struct synaptics_ts_data *ts)
 {
@@ -1926,11 +1937,13 @@ static const struct file_operations gesture_switch_proc_fops = {
 	.owner = THIS_MODULE,
 };
 
+#if 0
 static const struct file_operations coordinate_proc_fops = {
 	.read =  coordinate_proc_read_func,
 	.open = simple_open,
 	.owner = THIS_MODULE,
 };
+#endif
 
 static const struct file_operations double_tap_enable_proc_fops = {
 	.write = double_tap_enable_write_func,
@@ -3404,11 +3417,15 @@ static int init_synaptics_proc(void)
 		ret = -ENOMEM;
         TPD_ERR("Couldn't create gesture_switch\n");
 	}
+
+#if 0
 	prEntry_tmp = proc_create("coordinate", 0444, prEntry_tp, &coordinate_proc_fops);
 	if(prEntry_tmp == NULL){
 		ret = -ENOMEM;
         TPD_ERR("Couldn't create coordinate\n");
 	}
+#endif
+
 	prEntry_tmp = proc_create("double_tap_enable", 0666, prEntry_tp, &double_tap_enable_proc_fops);
 	if(prEntry_tmp == NULL){
 		ret = -ENOMEM;
@@ -4306,7 +4323,7 @@ static int synaptics_ts_probe(struct i2c_client *client, const struct i2c_device
 	}
 
 	strcpy(ts->test_limit_name,"tp/14049/14049_Limit_jdi.img");
-	TPD_DEBUG("0synatpitcs_fw: fw_name = %s,ts->manu_name:%s \n",ts->fw_name,ts->manu_name);
+	TPD_DEBUG("fw_name = %s,ts->manu_name:%s \n",ts->fw_name,ts->manu_name);
 
 	synaptics_wq = create_singlethread_workqueue("synaptics_wq");
 	if( !synaptics_wq ){
