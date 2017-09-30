@@ -2712,6 +2712,13 @@ static int mdss_dsi_event_handler(struct mdss_panel_data *pdata,
 	case MDSS_EVENT_PANEL_GET_DCI_P3_MODE:
 		rc = mdss_dsi_panel_get_dci_p3_mode(ctrl_pdata);
 		break;
+	case MDSS_EVENT_PANEL_SET_NIGHT_MODE:
+		ctrl_pdata->night_mode= (int)(unsigned long) arg;
+		mdss_dsi_panel_set_night_mode(ctrl_pdata,(int)(unsigned long) ctrl_pdata->night_mode);
+		break;
+	case MDSS_EVENT_PANEL_GET_NIGHT_MODE:
+		rc = mdss_dsi_panel_get_night_mode(ctrl_pdata);
+		break;
 	default:
 		pr_debug("%s: unhandled event=%d\n", __func__, event);
 		break;
