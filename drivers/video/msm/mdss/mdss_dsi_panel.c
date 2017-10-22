@@ -221,6 +221,107 @@ static void mdss_dsi_panel_bklt_dcs(struct mdss_dsi_ctrl_pdata *ctrl, int level)
 	mdss_dsi_cmdlist_put(ctrl, &cmdreq);
 }
 
+int mdss_dsi_panel_set_acl(struct mdss_dsi_ctrl_pdata *ctrl, int mode)
+{
+	struct dsi_panel_cmds *acl_cmds;
+
+	acl_cmds = &ctrl->acl_cmds;
+	if(!acl_cmds->cmd_cnt){
+		printk("this panel don't support acl mode\n");
+		return -1;
+	}
+
+	acl_cmds->cmds[ctrl->acl_ncmds].payload[ctrl->acl_npayload] = mode;
+
+	mdss_dsi_panel_cmds_send(ctrl, acl_cmds, CMD_REQ_COMMIT);
+
+	return 0;
+}
+
+int mdss_dsi_panel_set_srgb_mode(struct mdss_dsi_ctrl_pdata *ctrl, int level)
+{
+	struct dsi_panel_cmds *srgb_on_cmds,*srgb_off_cmds;
+
+	srgb_on_cmds = &ctrl->srgb_on_cmds;
+	srgb_off_cmds = &ctrl->srgb_off_cmds;
+
+	if(!srgb_on_cmds->cmd_cnt){
+		printk("this panel don't support srgb mode\n");
+		return -1;
+	}
+
+	if (level){
+			mdss_dsi_panel_cmds_send(ctrl, srgb_on_cmds, CMD_REQ_COMMIT);
+	    	pr_err("sRGB Mode On.\n");
+	}
+	else{
+			mdss_dsi_panel_cmds_send(ctrl, srgb_off_cmds, CMD_REQ_COMMIT);
+	    	pr_err("sRGB Mode off.\n");
+	}
+
+	return 0;
+}
+int mdss_dsi_panel_get_srgb_mode(struct mdss_dsi_ctrl_pdata *ctrl)
+{
+	return ctrl->SRGB_mode;
+}
+int mdss_dsi_panel_set_adobe_rgb_mode(struct mdss_dsi_ctrl_pdata *ctrl, int level)
+{
+	struct dsi_panel_cmds *adobe_rgb_on_cmds,*adobe_rgb_off_cmds;
+
+	adobe_rgb_on_cmds = &ctrl->Adobe_RGB_on_cmds;
+	adobe_rgb_off_cmds = &ctrl->Adobe_RGB_off_cmds;
+
+	if(!adobe_rgb_on_cmds->cmd_cnt){
+		printk("this panel don't support Adobe RGB mode\n");
+		return -1;
+	}
+
+	if (level){
+			mdss_dsi_panel_cmds_send(ctrl, adobe_rgb_on_cmds, CMD_REQ_COMMIT);
+	    	pr_err("Adobe RGB Mode On.\n");
+	}
+	else{
+			mdss_dsi_panel_cmds_send(ctrl, adobe_rgb_off_cmds, CMD_REQ_COMMIT);
+	    	pr_err("Adobe RGB Mode off.\n");
+	}
+
+	return 0;
+}
+int mdss_dsi_panel_get_adobe_rgb_mode(struct mdss_dsi_ctrl_pdata *ctrl)
+{
+	return ctrl->Adobe_RGB_mode;
+}
+
+int mdss_dsi_panel_set_dci_p3_mode(struct mdss_dsi_ctrl_pdata *ctrl, int level)
+{
+	struct dsi_panel_cmds *dci_p3_on_cmds,*dci_p3_off_cmds;
+
+	dci_p3_on_cmds = &ctrl->dci_p3_on_cmds;
+	dci_p3_off_cmds = &ctrl->dci_p3_off_cmds;
+
+	if(!dci_p3_on_cmds->cmd_cnt){
+		printk("this panel don't support DCI-P3 mode\n");
+		return -1;
+	}
+
+	if (level){
+			mdss_dsi_panel_cmds_send(ctrl, dci_p3_on_cmds, CMD_REQ_COMMIT);
+	    	pr_err("DCI P3 Mode On.\n");
+	}
+	else{
+			mdss_dsi_panel_cmds_send(ctrl, dci_p3_off_cmds, CMD_REQ_COMMIT);
+	    	pr_err("DCI P3 Mode off.\n");
+	}
+
+	return 0;
+}
+int mdss_dsi_panel_get_dci_p3_mode(struct mdss_dsi_ctrl_pdata *ctrl)
+{
+	return ctrl->dci_p3_mode;
+}
+
+
 static int mdss_dsi_request_gpios(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 {
 	int rc = 0;
@@ -700,6 +801,152 @@ static void mdss_dsi_panel_switch_mode(struct mdss_panel_data *pdata,
 		mdss_dsi_panel_dsc_pps_send(ctrl_pdata, &pdata->panel_info);
 }
 
+static char hbm_status = 0;
+
+int mdss_dsi_panel_set_hbm(struct mdss_dsi_ctrl_pdata *ctrl, int level)
+{
+	struct dsi_panel_cmds *hbm_on_cmds,*hbm_off_cmds;
+
+	hbm_on_cmds = &ctrl->hbm_on_cmds;
+	hbm_off_cmds = &ctrl->hbm_off_cmds;
+	if(!hbm_on_cmds->cmd_cnt){
+		printk("this panel don't support hbm mode\n");
+		return -1;
+	}
+
+	if (level){
+	    mdss_dsi_panel_cmds_send(ctrl, hbm_on_cmds, CMD_REQ_COMMIT);
+	    pr_err("HBM Mode ON\n");
+	}
+	else{
+		mdss_dsi_panel_cmds_send(ctrl, hbm_off_cmds, CMD_REQ_COMMIT);
+	    pr_err("HBM Mode OFF\n");
+	}
+
+	hbm_status = level;
+
+	return 0;
+}
+
+#define BRIGHTNESS_LEVEL_MASK 0x000F
+
+enum brightness_setting_src_mask {
+	BRIGHTNESS_MASK_AUTO_BL = 0x0010,
+	BRIGHTNESS_MASK_CAMERA =  0x0020,
+	BRIGHTNESS_MASK_GALLERY = 0x0040,
+    //Add other setting here.
+};
+
+#define DEFAULT_BRIGHTNESS_LEVEL 230
+#define MAX_BRIGHTNESS_LEVEL 255
+static int max_brightness_setting = MAX_BRIGHTNESS_LEVEL;
+static int pre_brightness_setting = 0;
+static int brightness_setting_src = 0;
+static int brightness_setting_level = 0;
+
+/*********************************************************************************
+int level;
+1. auto backlight setting
+   0x10 --Max 380 nit
+   0x11 --Max 430 nit
+   0x12 --HBM
+2. camera setting
+   0x20 --Max 380 nit
+   0x21 --Max 430 nit
+3. gallery setting
+   0x40 --Max 380 nit
+   0x41 --Max 430 nit
+4. 0, 1, 2 Can be also used for test.
+   0 --Max 380 nit
+   1 --Max 430 nit
+   2 --HBM
+**********************************************************************************/
+void mdss_dsi_panel_set_max_brightness(struct mdss_dsi_ctrl_pdata *ctrl, int level)
+{
+    struct mdss_dsi_ctrl_pdata *pctrl = ctrl;
+    int bl_level = BRIGHTNESS_LEVEL_MASK & level;
+
+    if (pctrl->high_brightness_panel){
+        if (!(pctrl->ctrl_state & CTRL_STATE_PANEL_INIT)){
+            pr_err("Can not set brightness in panel off status!!!\n" );
+            return;
+        }
+	    switch (bl_level){
+            case 0: //default brightness
+                if (!(level & (BRIGHTNESS_MASK_AUTO_BL | BRIGHTNESS_MASK_CAMERA | BRIGHTNESS_MASK_GALLERY))) { //for test
+                    if (hbm_status){
+                        mdss_dsi_panel_set_hbm(pctrl, 0);
+                        brightness_setting_level &= ~0x02;
+                    }
+                }else if ((level & BRIGHTNESS_MASK_AUTO_BL)){ //auto backlight setting
+                    if (hbm_status){
+                        mdss_dsi_panel_set_hbm(pctrl, 0);
+                        brightness_setting_level &= ~0x02;
+                    }
+                    if (brightness_setting_src & (BRIGHTNESS_MASK_CAMERA | BRIGHTNESS_MASK_GALLERY)){ //Camera or Gallery has set brightness
+                       break;
+                    }
+                }else if (level & BRIGHTNESS_MASK_CAMERA){
+                    if (brightness_setting_src & (BRIGHTNESS_MASK_AUTO_BL | BRIGHTNESS_MASK_GALLERY)){ //Auto BL or Gallery has set brightness
+                       break;
+                    }
+                }else if (level & BRIGHTNESS_MASK_GALLERY){
+                    if (brightness_setting_src & (BRIGHTNESS_MASK_AUTO_BL | BRIGHTNESS_MASK_CAMERA)){ //Auto BL or Camera has set brightness
+                       break;
+                    }
+                }
+
+                max_brightness_setting = DEFAULT_BRIGHTNESS_LEVEL;
+                mdss_dsi_panel_bklt_dcs(pctrl, pre_brightness_setting);
+                brightness_setting_level &= ~0x01;
+                break;
+
+            case 1: //max brightness
+                max_brightness_setting = MAX_BRIGHTNESS_LEVEL;
+                mdss_dsi_panel_bklt_dcs(pctrl, pre_brightness_setting);
+                brightness_setting_level |= 0x01;
+                //app can not disable hbm
+                if (level & (BRIGHTNESS_MASK_CAMERA | BRIGHTNESS_MASK_GALLERY)){
+                    break;
+                }
+                if (hbm_status){
+                    mdss_dsi_panel_set_hbm(pctrl, 0);
+                    brightness_setting_level &= ~0x02;
+                }
+                break;
+
+            case 2: //HBM
+                //app can not enable hbm
+                if (level & (BRIGHTNESS_MASK_CAMERA | BRIGHTNESS_MASK_GALLERY)){
+                    break;
+                }
+                mdss_dsi_panel_set_hbm(pctrl, 1);
+                brightness_setting_level |= 0x02;
+                break;
+            default:
+                break;
+        }
+
+        if (bl_level) {
+            brightness_setting_src |= (level & (BRIGHTNESS_MASK_AUTO_BL |
+                      BRIGHTNESS_MASK_CAMERA | BRIGHTNESS_MASK_GALLERY));
+        }else{
+            brightness_setting_src &= ~(level & (BRIGHTNESS_MASK_AUTO_BL |
+                 BRIGHTNESS_MASK_CAMERA | BRIGHTNESS_MASK_GALLERY));
+        }
+    }
+    return;
+}
+int mdss_dsi_panel_get_max_brightness(struct mdss_dsi_ctrl_pdata *ctrl)
+{
+    struct mdss_dsi_ctrl_pdata *pctrl = ctrl;
+
+    if (pctrl->high_brightness_panel){
+        return (brightness_setting_level > 0x02) ? 0x02 : brightness_setting_level;
+	}else
+        return 0;
+}
+
 static void mdss_dsi_panel_bl_ctrl(struct mdss_panel_data *pdata,
 							u32 bl_level)
 {
@@ -713,6 +960,9 @@ static void mdss_dsi_panel_bl_ctrl(struct mdss_panel_data *pdata,
 
 	ctrl_pdata = container_of(pdata, struct mdss_dsi_ctrl_pdata,
 				panel_data);
+
+	if (ctrl_pdata->high_brightness_panel)
+		pre_brightness_setting = bl_level;
 
 	/*
 	 * Some backlight controllers specify a minimum duty cycle
@@ -795,7 +1045,17 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 
 	if (on_cmds->cmd_cnt)
 		mdss_dsi_panel_cmds_send(ctrl, on_cmds, CMD_REQ_COMMIT);
-
+	if(ctrl->acl_mode)
+		mdss_dsi_panel_set_acl(ctrl,ctrl->acl_mode);
+    	if (mdss_dsi_panel_get_srgb_mode(ctrl)){
+		mdss_dsi_panel_set_srgb_mode(ctrl, mdss_dsi_panel_get_srgb_mode(ctrl));
+    	}
+    	if (mdss_dsi_panel_get_adobe_rgb_mode(ctrl)){
+		mdss_dsi_panel_set_adobe_rgb_mode(ctrl, mdss_dsi_panel_get_adobe_rgb_mode(ctrl));
+    	}
+    	if (mdss_dsi_panel_get_dci_p3_mode(ctrl)){
+		mdss_dsi_panel_set_dci_p3_mode(ctrl, mdss_dsi_panel_get_dci_p3_mode(ctrl));
+   	}
 	if (pinfo->compression_mode == COMPRESSION_DSC)
 		mdss_dsi_panel_dsc_pps_send(ctrl, pinfo);
 
@@ -2587,6 +2847,45 @@ static int mdss_panel_parse_dt(struct device_node *np,
 	if (rc)
 		return rc;
 
+	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->acl_cmds,
+		"qcom,mdss-dsi-panel-acl-command",
+		"qcom,mdss-dsi-acl-command-state");
+
+	rc = of_property_read_u32(np, "qcom,mdss-dsi-acl-ncmds", &tmp);
+	ctrl_pdata->acl_ncmds = (!rc ? tmp : 0);
+
+	rc = of_property_read_u32(np, "qcom,mdss-dsi-acl-npayload", &tmp);
+	ctrl_pdata->acl_npayload = (!rc ? tmp : 0);
+
+	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->srgb_on_cmds,
+		"qcom,mdss-dsi-panel-srgb-on-command",
+		"qcom,mdss-dsi-srgb-command-state");
+	
+	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->srgb_off_cmds,
+		"qcom,mdss-dsi-panel-srgb-off-command",
+		"qcom,mdss-dsi-srgb-command-state");
+	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->Adobe_RGB_on_cmds,
+		"qcom,mdss-dsi-panel-Adobe-rgb-on-command",
+		"qcom,mdss-dsi-Adobe-rgb-command-state");
+	
+	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->Adobe_RGB_off_cmds,
+		"qcom,mdss-dsi-panel-Adobe-rgb-off-command",
+		"qcom,mdss-dsi-Adobe-rgb-command-state");
+	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->dci_p3_on_cmds,
+		"qcom,mdss-dsi-panel-dci-p3-on-command",
+		"qcom,mdss-dsi-dci-p3-command-state");
+	
+	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->dci_p3_off_cmds,
+		"qcom,mdss-dsi-panel-dci-p3-off-command",
+		"qcom,mdss-dsi-dci-p3-command-state");
+
+	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->hbm_on_cmds,
+		"qcom,mdss-dsi-panel-hbm-on-command",
+		"qcom,mdss-dsi-hbm-command-state");
+	
+	mdss_dsi_parse_dcs_cmds(np, &ctrl_pdata->hbm_off_cmds,
+		"qcom,mdss-dsi-panel-hbm-off-command",
+		"qcom,mdss-dsi-hbm-command-state");
 	pinfo->mipi.rx_eot_ignore = of_property_read_bool(np,
 		"qcom,mdss-dsi-rx-eot-ignore");
 	pinfo->mipi.tx_eot_append = of_property_read_bool(np,
@@ -2703,6 +3002,9 @@ int mdss_dsi_panel_init(struct device_node *node,
 	pinfo->is_lpm_mode = false;
 	pinfo->esd_rdy = false;
 
+	ctrl_pdata->high_brightness_panel= of_property_read_bool(node,
+					"qcom,mdss-dsi-high-brightness-panel");
+        pr_err("high brightness panel: %d\n", ctrl_pdata->high_brightness_panel);
 	ctrl_pdata->on = mdss_dsi_panel_on;
 	ctrl_pdata->post_panel_on = mdss_dsi_post_panel_on;
 	ctrl_pdata->off = mdss_dsi_panel_off;

@@ -532,8 +532,28 @@ struct mdss_dsi_ctrl_pdata {
 	int m_mdp_vote_cnt;
 	/* debugfs structure */
 	struct mdss_dsi_debugfs_info *debugfs_info;
-
 	struct dsi_err_container err_cont;
+	int  max_brightness_level;
+	char high_brightness_panel;
+	struct dsi_panel_cmds hbm_on_cmds;
+	struct dsi_panel_cmds hbm_off_cmds;
+
+	int acl_mode;
+	struct dsi_panel_cmds acl_cmds;
+	int acl_ncmds;
+	int acl_npayload;
+
+	int  SRGB_mode;
+	struct dsi_panel_cmds srgb_on_cmds;
+	struct dsi_panel_cmds srgb_off_cmds;
+
+	int  Adobe_RGB_mode;
+	struct dsi_panel_cmds Adobe_RGB_on_cmds;
+	struct dsi_panel_cmds Adobe_RGB_off_cmds;
+
+	int  dci_p3_mode;
+	struct dsi_panel_cmds dci_p3_on_cmds;
+	struct dsi_panel_cmds dci_p3_off_cmds;
 
 	struct kobject *kobj;
 	int fb_node;
@@ -666,6 +686,16 @@ void mdss_dsi_set_burst_mode(struct mdss_dsi_ctrl_pdata *ctrl);
 void mdss_dsi_set_reg(struct mdss_dsi_ctrl_pdata *ctrl, int off,
 	u32 mask, u32 val);
 int mdss_dsi_phy_pll_reset_status(struct mdss_dsi_ctrl_pdata *ctrl);
+int mdss_dsi_panel_set_acl(struct mdss_dsi_ctrl_pdata *ctrl, int mode);
+void mdss_dsi_panel_set_max_brightness(struct mdss_dsi_ctrl_pdata *ctrl, int level);
+int mdss_dsi_panel_get_max_brightness(struct mdss_dsi_ctrl_pdata *ctrl);
+int mdss_dsi_panel_set_srgb_mode(struct mdss_dsi_ctrl_pdata *ctrl, int level);
+int mdss_dsi_panel_get_srgb_mode(struct mdss_dsi_ctrl_pdata *ctrl);
+int mdss_dsi_panel_set_adobe_rgb_mode(struct mdss_dsi_ctrl_pdata *ctrl, int level);
+int mdss_dsi_panel_get_adobe_rgb_mode(struct mdss_dsi_ctrl_pdata *ctrl);
+int mdss_dsi_panel_set_dci_p3_mode(struct mdss_dsi_ctrl_pdata *ctrl, int level);
+int mdss_dsi_panel_get_dci_p3_mode(struct mdss_dsi_ctrl_pdata *ctrl);
+
 
 static inline const char *__mdss_dsi_pm_name(enum dsi_pm_type module)
 {
