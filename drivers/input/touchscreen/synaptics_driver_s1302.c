@@ -677,7 +677,11 @@ static void int_key(struct synaptics_ts_data *ts )
 {
 
     int ret;
-	int button_key;
+    int button_key;
+
+    // should never happen
+    if (ts->is_suspended == 1)
+        return;
 
     ret = synaptics_rmi4_i2c_write_byte(ts->client, 0xff, 0x02 );
     if (ret < 0) {
@@ -2188,19 +2192,22 @@ static int fb_notifier_callback(struct notifier_block *self, unsigned long event
 
 	struct synaptics_ts_data *ts = container_of(self, struct synaptics_ts_data, fb_notif);
 
-	if(FB_EVENT_BLANK != event)
-	return 0;
-	if((evdata) && (evdata->data) && (ts) && (ts->client)&&(event == FB_EVENT_BLANK)) {
+	if (FB_EARLY_EVENT_BLANK != event && FB_EVENT_BLANK != event)
+		return 0;
+
+	if ((evdata) && (evdata->data) && (ts) && (ts->client)) {
 		blank = evdata->data;
-		if( *blank == FB_BLANK_UNBLANK || *blank == FB_BLANK_NORMAL) {
-			TPD_DEBUG("%s going TP resume\n", __func__);
+		TPD_DEBUG("%s blank[%d],event[0x%lx]\n", __func__, *blank, event);
+
+		if( *blank == FB_BLANK_UNBLANK && (event == FB_EARLY_EVENT_BLANK)) {
 			if(ts->suspended == 1){
+				TPD_DEBUG("%s going TP resume\n", __func__);
 				ts->suspended = 0;
 				synaptics_ts_resume(&ts->client->dev);
 			}
-		} else if( *blank == FB_BLANK_POWERDOWN) {
-			TPD_DEBUG("%s : going TP suspend\n", __func__);
+		} else if (*blank == FB_BLANK_POWERDOWN && (event == FB_EARLY_EVENT_BLANK)) {
 			if(ts->suspended == 0) {
+				TPD_DEBUG("%s : going TP suspend\n", __func__);
 				ts->suspended = 1;
 				synaptics_ts_suspend(&ts->client->dev);
 			}
